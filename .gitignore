@@ -1,6 +1,5 @@
 node_modules/
 dist/
-api/index.mjs
 .env
 .env.local
 .env.*.local

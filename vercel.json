@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "installCommand": "npm install && npm run build:vercel",
-  "buildCommand": "true",
   "builds": [{"src": "api/index.mjs", "use": "@vercel/node"}],
   "rewrites": [{"source": "/(.*)", "destination": "/api"}]
 }
