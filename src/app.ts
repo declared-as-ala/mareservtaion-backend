@@ -16,9 +16,20 @@ dotenv.config();
 
 const app = express();
 const CORS_ORIGIN = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'https://mareservtaion-frontend.vercel.app',
+  CORS_ORIGIN,
+].filter(Boolean);
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, origin || ALLOWED_ORIGINS[0]);
+    else cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
 
