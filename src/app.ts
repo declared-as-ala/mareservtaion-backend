@@ -22,6 +22,15 @@ app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
+app.get('/', (req, res) => {
+  res.status(200).json({
+    name: 'MaTable API',
+    version: '1.0',
+    docs: '/health',
+    message: 'Use /api/* endpoints. Health check at /health',
+  });
+});
+
 app.get('/health', (req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
   res.status(dbConnected ? 200 : 503).json({
@@ -30,6 +39,10 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Avoid 404s from browser favicon requests
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+app.get('/favicon.png', (req, res) => res.status(204).end());
 
 app.use('/api/venues', venuesRouter);
 app.use('/api/tables', tablesRouter);

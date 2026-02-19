@@ -4,7 +4,7 @@ API backend pour **Ma Reservation** (réservations tables, chambres, sièges).
 
 ## Variables d'environnement
 
-Créer un fichier `.env` à partir de `env.example` :
+Créer un fichier `.env` à partir de `.env.example` :
 
 | Variable | Description |
 |----------|-------------|
@@ -17,7 +17,7 @@ Créer un fichier `.env` à partir de `env.example` :
 
 ```bash
 npm install
-cp env.example .env
+cp .env.example .env
 # Éditer .env avec vos valeurs
 ```
 
