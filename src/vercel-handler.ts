@@ -1,5 +1,5 @@
-import { connectDatabase } from '../src/config/database';
-import app from '../src/app';
+import { connectDatabase } from './config/database';
+import app from './app';
 
 let dbConnected = false;
 
