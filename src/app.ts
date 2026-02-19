@@ -22,14 +22,18 @@ app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-app.get('/', (req, res) => {
+const apiInfo = (req: express.Request, res: express.Response) => {
   res.status(200).json({
     name: 'MaTable API',
     version: '1.0',
     docs: '/health',
     message: 'Use /api/* endpoints. Health check at /health',
   });
-});
+};
+
+// Handle both / and /api (Vercel may pass /api when root is rewritten)
+app.get('/', apiInfo);
+app.get('/api', apiInfo);
 
 app.get('/health', (req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
@@ -40,9 +44,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Avoid 404s from browser favicon requests
+// Avoid 404s from browser favicon requests (handle both paths for Vercel)
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.get('/favicon.png', (req, res) => res.status(204).end());
+app.get('/api/favicon.ico', (req, res) => res.status(204).end());
+app.get('/api/favicon.png', (req, res) => res.status(204).end());
 
 app.use('/api/venues', venuesRouter);
 app.use('/api/tables', tablesRouter);
