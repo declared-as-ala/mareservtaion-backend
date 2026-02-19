@@ -12,7 +12,7 @@ await esbuild.build({
   format: 'esm',
   outfile: join(root, 'api', 'index.mjs'),
   external: [
-    'mongoose', 'bcryptjs', 'cookie-parser', 'cors', 'express', 'helmet',
+    'dotenv', 'mongoose', 'bcryptjs', 'cookie-parser', 'cors', 'express', 'helmet',
     'jsonwebtoken', 'express-rate-limit', 'express-validator', 'zod', 'multer'
   ],
   minify: false,
