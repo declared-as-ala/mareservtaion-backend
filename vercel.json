@@ -1,8 +1,5 @@
 {
   "version": 2,
   "buildCommand": "npm run build:vercel",
-  "builds": [{"src": "api/index.mjs", "use": "@vercel/node", "config": {"includeFiles": "src/**"}}],
-  "rewrites": [
-    {"source": "/(.*)", "destination": "/api"}
-  ]
+  "rewrites": [{"source": "/(.*)", "destination": "/api"}]
 }
