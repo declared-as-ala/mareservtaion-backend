@@ -63,4 +63,13 @@ app.use((err: any, req: express.Request, res: express.Response) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// Explicit 404 — ensures we never surface unclear NOT_FOUND from unhandled routes
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    path: req.path,
+    message: 'Use /api/* endpoints. Health check at /health',
+  });
+});
+
 export default app;
