@@ -10,7 +10,7 @@ await esbuild.build({
   bundle: true,
   platform: 'node',
   format: 'esm',
-  outfile: join(root, 'api', 'index.mjs'),
+  outfile: join(root, 'api', 'handler.mjs'),
   external: [
     'mongoose', 'bcryptjs', 'cookie-parser', 'cors', 'express', 'helmet',
     'jsonwebtoken', 'express-rate-limit', 'express-validator', 'zod', 'multer'
