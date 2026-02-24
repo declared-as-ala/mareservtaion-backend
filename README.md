@@ -37,11 +37,11 @@ cp env.example .env
    - `MONGODB_URI` (ou `MONGO_URI`)
    - `JWT_SECRET`
    - `FRONTEND_URL` = URL du frontend (ex: https://mareservtaion-frontend.vercel.app)
-3. **Build** : le projet utilise `vercel.json` avec `buildCommand: npm run build:vercel` et route tout vers `api/index.mjs`.
+3. **Build** : `vercel.json` utilise `buildCommand: npm run build:vercel` (génère `api/index.mjs`) et **rewrites** : toutes les requêtes sont envoyées vers `/api`.
 4. **Test santé** : `GET https://votre-projet.vercel.app/api/v1/health`  
    Réponse attendue : `{ "status": "ok", "db": "connected", "timestamp": "..." }`
 
-En cas de 404 sur la racine ou `/api/v1/health` : vérifier que le déploiement a bien exécuté le build et que les routes pointent vers `api/index.mjs`. Cold start peut retarder la première réponse.
+**En cas de 404 (NOT_FOUND)** : s’assurer que `vercel.json` contient `"rewrites": [{ "source": "/(.*)", "destination": "/api" }]` (et non `routes` avec `dest: "/api/index.mjs"`). Redéployer après modification. Le premier appel peut être lent (cold start).
 
 ## Endpoints principaux (préfixe /api/v1)
 

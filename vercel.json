@@ -2,15 +2,9 @@
   "version": 2,
   "buildCommand": "npm run build:vercel",
   "builds": [
-    {
-      "src": "api/index.mjs",
-      "use": "@vercel/node"
-    }
+    { "src": "api/index.mjs", "use": "@vercel/node" }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.mjs"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api" }
   ]
 }
