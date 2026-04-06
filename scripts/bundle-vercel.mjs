@@ -14,7 +14,8 @@ await esbuild.build({
   external: [
     'dotenv',
     'mongoose', 'bcryptjs', 'cookie-parser', 'cors', 'express', 'helmet',
-    'jsonwebtoken', 'express-rate-limit', 'express-validator', 'zod', 'multer'
+    'jsonwebtoken', 'express-rate-limit', 'express-validator', 'zod', 'multer',
+    'cloudinary', 'multer-storage-cloudinary',
   ],
   minify: false,
   sourcemap: false,
