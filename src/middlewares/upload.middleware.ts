@@ -1,40 +1,41 @@
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { Request } from 'express';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
-
-// Ensure upload directory exists
-try {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  fs.mkdirSync(path.join(UPLOAD_DIR, 'images'), { recursive: true });
-  fs.mkdirSync(path.join(UPLOAD_DIR, 'videos'), { recursive: true });
-} catch {
-  // ignoreUPLOAD_MAX_FILE_SIZE_MB=30
-
-}
-
-const storage = multer.diskStorage({
-  destination: (_req: Request, file: Express.Multer.File, cb) => {
-    const isVideo = /^video\//.test(file.mimetype) || /\.(mp4|mov|mkv|webm)$/i.test(file.originalname);
-    const dir = isVideo ? path.join(UPLOAD_DIR, 'videos') : path.join(UPLOAD_DIR, 'images');
-    cb(null, dir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || (file.mimetype.includes('video') ? '.mp4' : '.jpg');
-    const name = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
-    cb(null, name);
-  },
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const VIDEO_MIMES = ['video/mp4', 'video/quicktime', 'video/x-matroska', 'video/webm'];
 
-const UPLOAD_MAX_FILE_SIZE_MB = Number(process.env.UPLOAD_MAX_FILE_SIZE_MB) || 5000;
+const UPLOAD_MAX_FILE_SIZE_MB = Number(process.env.UPLOAD_MAX_FILE_SIZE_MB) || 200;
+
+// Cloudinary storage for images
+const imageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ma-reservation/images',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+    resource_type: 'image',
+  } as any,
+});
+
+// Cloudinary storage for videos
+const videoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ma-reservation/videos',
+    allowed_formats: ['mp4', 'mov', 'mkv', 'webm'],
+    resource_type: 'video',
+  } as any,
+});
 
 export const uploadImage = multer({
-  storage,
+  storage: imageStorage,
   limits: { fileSize: UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (IMAGE_MIMES.includes(file.mimetype)) return cb(null, true);
@@ -43,19 +44,22 @@ export const uploadImage = multer({
 }).single('file');
 
 export const uploadVideo = multer({
-  storage,
+  storage: videoStorage,
   limits: { fileSize: UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (VIDEO_MIMES.includes(file.mimetype) || /\.(mp4|mov|mkv|webm)$/i.test(file.originalname)) return cb(null, true);
+    if (VIDEO_MIMES.includes(file.mimetype) || /\.(mp4|mov|mkv|webm)$/i.test(file.originalname))
+      return cb(null, true);
     cb(new Error('Type de fichier non autorisé. Utilisez MP4, MOV ou MKV.'));
   },
 }).single('file');
 
 /**
- * Return a URL path for a file stored on disk (for local dev).
- * In production, replace with cloud URL (S3/Cloudinary).
+ * Returns the Cloudinary secure URL for an uploaded file.
+ * multer-storage-cloudinary sets req.file.path to the Cloudinary secure URL automatically.
+ * This function is kept for backward compatibility — prefer req.file.path directly in route handlers.
  */
-export function getFileUrl(filename: string, type: 'images' | 'videos' = 'images'): string {
-  const base = process.env.API_BASE_URL || 'http://localhost:3001';
-  return `${base}/uploads/${type}/${filename}`;
+export function getFileUrl(filePathOrFilename: string, _type?: 'images' | 'videos'): string {
+  return filePathOrFilename;
 }
+
+export { cloudinary };

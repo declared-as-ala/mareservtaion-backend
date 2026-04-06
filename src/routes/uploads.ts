@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import path from 'path';
-import { uploadImage, uploadVideo, getFileUrl } from '../middlewares/upload.middleware';
+import { uploadImage, uploadVideo } from '../middlewares/upload.middleware';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { VirtualTour } from '../models/VirtualTour';
 
@@ -11,8 +10,10 @@ router.post('/image', authenticate, uploadImage, (req: AuthRequest, res) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ success: false, message: 'Aucun fichier envoyé.' });
-    const url = getFileUrl(file.filename, 'images');
-    res.status(201).json({ success: true, data: { url, filename: file.filename } });
+    // multer-storage-cloudinary stores the Cloudinary secure URL in file.path
+    const url = (file as any).path;
+    const publicId = (file as any).filename;
+    res.status(201).json({ success: true, data: { url, filename: publicId } });
   } catch (error) {
     console.error('Error uploading image:', error);
     res.status(500).json({ success: false, message: 'Erreur lors de l\'upload.' });
@@ -26,7 +27,8 @@ router.post('/video', authenticate, requireAdmin, uploadVideo, async (req: AuthR
     if (!file) return res.status(400).json({ success: false, message: 'Aucun fichier vidéo envoyé.' });
     const { venueId } = req.body;
     if (!venueId) return res.status(400).json({ success: false, message: 'venueId requis.' });
-    const videoUrl = getFileUrl(file.filename, 'videos');
+    // multer-storage-cloudinary stores the Cloudinary secure URL in file.path
+    const videoUrl = (file as any).path;
     const tour = await VirtualTour.create({
       venueId,
       sourceType: 'uploaded_video',
