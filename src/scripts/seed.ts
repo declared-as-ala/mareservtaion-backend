@@ -88,9 +88,10 @@ async function seed() {
     { fullName: 'Amira Jlassi', email: 'client3@example.com', passwordHash: hash, role: 'CUSTOMER' },
     { fullName: 'Youssef Ben Ammar', email: 'client4@example.com', passwordHash: hash, role: 'CUSTOMER' },
     { fullName: 'Sarra Gharbi', email: 'client5@example.com', passwordHash: hash, role: 'CUSTOMER' },
+    { fullName: 'Ala', email: 'ala@alai.com', passwordHash: hash, role: 'CUSTOMER' },
   ]);
 
-  console.log('👤 Created 1 admin, 5 customers');
+  console.log('👤 Created 1 admin, 6 customers');
 
   const categories = await Category.insertMany([
     { name: 'Cafés', slug: 'cafes', type: 'primary', displayOrder: 1 },
@@ -154,8 +155,8 @@ async function seed() {
   const p1 = pitchYawToPercent(0, -0.6);
   const p2 = pitchYawToPercent(0, 0.6);
   await TourHotspot.insertMany([
-    { virtualTourId: tour1._id, label: 'Table 1', targetType: 'table', targetId: cafe1Tables[0]._id, xPercent: p1.xPercent, yPercent: p1.yPercent, isActive: true },
-    { virtualTourId: tour1._id, label: 'Table 2', targetType: 'table', targetId: cafe1Tables[1]._id, xPercent: p2.xPercent, yPercent: p2.yPercent, isActive: true },
+    { venueId: cafe1._id, virtualTourId: tour1._id, label: 'Table 1', targetType: 'table', targetId: cafe1Tables[0]._id, xPercent: p1.xPercent, yPercent: p1.yPercent, isActive: true },
+    { venueId: cafe1._id, virtualTourId: tour1._id, label: 'Table 2', targetType: 'table', targetId: cafe1Tables[1]._id, xPercent: p2.xPercent, yPercent: p2.yPercent, isActive: true },
   ]);
 
   // Café 2
@@ -193,8 +194,8 @@ async function seed() {
   const p3 = pitchYawToPercent(0, -0.5);
   const p4 = pitchYawToPercent(0, 0.5);
   await TourHotspot.insertMany([
-    { virtualTourId: tour2._id, label: 'Table 1', targetType: 'table', targetId: cafe2Tables[0]._id, xPercent: p3.xPercent, yPercent: p3.yPercent, isActive: true },
-    { virtualTourId: tour2._id, label: 'Table 2', targetType: 'table', targetId: cafe2Tables[1]._id, xPercent: p4.xPercent, yPercent: p4.yPercent, isActive: true },
+    { venueId: cafe2._id, virtualTourId: tour2._id, label: 'Table 1', targetType: 'table', targetId: cafe2Tables[0]._id, xPercent: p3.xPercent, yPercent: p3.yPercent, isActive: true },
+    { venueId: cafe2._id, virtualTourId: tour2._id, label: 'Table 2', targetType: 'table', targetId: cafe2Tables[1]._id, xPercent: p4.xPercent, yPercent: p4.yPercent, isActive: true },
   ]);
 
   // Restaurant 1
@@ -232,9 +233,9 @@ async function seed() {
     { venueId: restaurant._id, tableId: restaurantTables[2]._id, sceneId: 'default', pitch: 0, yaw: 0.7 },
   ]);
   await TourHotspot.insertMany([
-    { virtualTourId: tourRest._id, label: 'Table 1', targetType: 'table', targetId: restaurantTables[0]._id, xPercent: pitchYawToPercent(0, -0.7).xPercent, yPercent: pitchYawToPercent(0, -0.7).yPercent, isActive: true },
-    { virtualTourId: tourRest._id, label: 'Table 2', targetType: 'table', targetId: restaurantTables[1]._id, xPercent: 50, yPercent: 50, isActive: true },
-    { virtualTourId: tourRest._id, label: 'Table 3', targetType: 'table', targetId: restaurantTables[2]._id, xPercent: pitchYawToPercent(0, 0.7).xPercent, yPercent: pitchYawToPercent(0, 0.7).yPercent, isActive: true },
+    { venueId: restaurant._id, virtualTourId: tourRest._id, label: 'Table 1', targetType: 'table', targetId: restaurantTables[0]._id, xPercent: pitchYawToPercent(0, -0.7).xPercent, yPercent: pitchYawToPercent(0, -0.7).yPercent, isActive: true },
+    { venueId: restaurant._id, virtualTourId: tourRest._id, label: 'Table 2', targetType: 'table', targetId: restaurantTables[1]._id, xPercent: 50, yPercent: 50, isActive: true },
+    { venueId: restaurant._id, virtualTourId: tourRest._id, label: 'Table 3', targetType: 'table', targetId: restaurantTables[2]._id, xPercent: pitchYawToPercent(0, 0.7).xPercent, yPercent: pitchYawToPercent(0, 0.7).yPercent, isActive: true },
   ]);
 
   // Restaurant 2
@@ -296,8 +297,8 @@ async function seed() {
   ]);
   const tourHotel = await VirtualTour.create({ venueId: hotel._id, provider: 'klapty', embedUrl: KLAPTY_TUNNEL.hotel, isActive: true });
   await TourHotspot.insertMany([
-    { virtualTourId: tourHotel._id, label: 'Chambre 101', targetType: 'room', targetId: hotelRooms[0]._id, xPercent: 25, yPercent: 50, isActive: true },
-    { virtualTourId: tourHotel._id, label: 'Chambre 102', targetType: 'room', targetId: hotelRooms[1]._id, xPercent: 75, yPercent: 50, isActive: true },
+    { venueId: hotel._id, virtualTourId: tourHotel._id, label: 'Chambre 101', targetType: 'room', targetId: hotelRooms[0]._id, xPercent: 25, yPercent: 50, isActive: true },
+    { venueId: hotel._id, virtualTourId: tourHotel._id, label: 'Chambre 102', targetType: 'room', targetId: hotelRooms[1]._id, xPercent: 75, yPercent: 50, isActive: true },
   ]);
 
   // Hotel 2
@@ -358,8 +359,8 @@ async function seed() {
   ]);
   const tourCinema = await VirtualTour.create({ venueId: cinema._id, provider: 'klapty', embedUrl: KLAPTY_TUNNEL.cinema, isActive: true });
   await TourHotspot.insertMany([
-    { virtualTourId: tourCinema._id, label: 'Zone Centre', targetType: 'seat_zone', targetId: cinemaSeats[0]._id, xPercent: 40, yPercent: 50, isActive: true },
-    { virtualTourId: tourCinema._id, label: 'Zone Vip', targetType: 'seat_zone', targetId: cinemaSeats[2]._id, xPercent: 60, yPercent: 50, isActive: true },
+    { venueId: cinema._id, virtualTourId: tourCinema._id, label: 'Zone Centre', targetType: 'seat_zone', targetId: cinemaSeats[0]._id, xPercent: 40, yPercent: 50, isActive: true },
+    { venueId: cinema._id, virtualTourId: tourCinema._id, label: 'Zone Vip', targetType: 'seat_zone', targetId: cinemaSeats[2]._id, xPercent: 60, yPercent: 50, isActive: true },
   ]);
 
   // Cinema 2
@@ -507,6 +508,7 @@ async function seed() {
   console.log('\n📝 Credentials (password: ' + PASSWORD + ')');
   console.log('  Admin:   admin@mareservation.tn');
   console.log('  Customer (with reservations): client1@example.com');
+  console.log('  Customer (new): ala@alai.com');
   console.log('  Customer (pending + cancelled): client2@example.com');
   console.log('  Customers: client3@example.com, client4@example.com, client5@example.com');
 

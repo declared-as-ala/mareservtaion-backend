@@ -7,9 +7,12 @@ import { TourHotspot } from '../models/TourHotspot';
 import { Table } from '../models/Table';
 import { Room } from '../models/Room';
 import { Seat } from '../models/Seat';
+import { ReservableUnit } from '../models/ReservableUnit';
 import { TableHotspot } from '../models/TableHotspot';
+import { TablePlacement } from '../models/TablePlacement';
 import { Event } from '../models/Event';
 import { Reservation } from '../models/Reservation';
+import { ReservationHold } from '../models/ReservationHold';
 
 const router = Router();
 
@@ -51,23 +54,168 @@ router.get('/:id/hotspots', async (req, res) => {
   }
 });
 
+// GET /api/v1/venues/:id/reservable-units — list reservable units (tables, rooms, seat zones) for a venue
+router.get('/:id/reservable-units', async (req, res) => {
+  try {
+    const venue = await Venue.findOne(
+      mongoose.Types.ObjectId.isValid(req.params.id) && req.params.id.length === 24
+        ? { _id: req.params.id }
+        : { slug: req.params.id }
+    ).lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu non trouvé' });
+    const units = await ReservableUnit.find({
+      venueId: (venue as any)._id,
+      status: { $in: ['active'] },
+    })
+      .sort({ displayOrder: 1 })
+      .lean();
+    res.json(units);
+  } catch (error) {
+    console.error('Error fetching reservable units:', error);
+    res.status(500).json({ error: 'Échec du chargement des unités réservables.' });
+  }
+});
+
+// GET /api/v1/venues/:id/availability — check availability for a date/time range (query: startsAt, endsAt, reservableUnitId?)
+router.get('/:id/availability', async (req, res) => {
+  try {
+    const venue = await Venue.findOne(
+      mongoose.Types.ObjectId.isValid(req.params.id) && req.params.id.length === 24
+        ? { _id: req.params.id }
+        : { slug: req.params.id }
+    ).lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu non trouvé' });
+    const venueId = (venue as any)._id;
+    const { startsAt, endsAt, reservableUnitId } = req.query;
+    if (!startsAt || !endsAt) {
+      return res.status(400).json({ error: 'startsAt et endsAt sont requis en query.' });
+    }
+    const start = new Date(startsAt as string);
+    const end = new Date(endsAt as string);
+    const filter: Record<string, unknown> = {
+      venueId,
+      status: { $in: ['PENDING', 'CONFIRMED'] },
+      $or: [{ startAt: { $lt: end }, endAt: { $gt: start } }],
+    };
+    if (reservableUnitId) filter.reservableUnitId = reservableUnitId;
+    const overlapping = await Reservation.find(filter).select('reservableUnitId tableId roomId seatId startAt endAt').lean();
+    res.json({ available: overlapping.length === 0, reservations: overlapping });
+  } catch (error) {
+    console.error('Error checking availability:', error);
+    res.status(500).json({ error: 'Échec de la vérification de disponibilité.' });
+  }
+});
+
+// GET /api/v1/venues/:id/table-placements — public list of table placements for a venue, with table info
+router.get('/:id/table-placements', async (req, res) => {
+  try {
+    const idOrSlug = req.params.id;
+    const venue = await (mongoose.Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24
+      ? Venue.findById(idOrSlug)
+      : Venue.findOne({ slug: idOrSlug })
+    ).lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu non trouvé' });
+
+    const venueId = (venue as any)._id;
+    const placements = await TablePlacement.find({ venueId }).lean();
+
+    const tableIds = [...new Set((placements as any[]).map((p) => p.tableId))];
+    const tables = tableIds.length
+      ? await Table.find({ _id: { $in: tableIds }, isActive: true })
+          .select('_id tableNumber name capacity price minimumSpend defaultStatus isVip locationLabel')
+          .lean()
+      : [];
+    const tableMap = new Map((tables as any[]).map((t) => [t._id.toString(), t]));
+
+    const { startAt, endAt } = req.query;
+    let reservedTableIds = new Set<string>();
+    if (startAt && endAt) {
+      const start = new Date(startAt as string);
+      const end = new Date(endAt as string);
+      const now = new Date();
+      const [overlappingReservations, overlappingHolds] = await Promise.all([
+        Reservation.find({
+          venueId,
+          status: { $in: ['PENDING', 'CONFIRMED'] },
+          $or: [{ startAt: { $lt: end }, endAt: { $gt: start } }],
+        }).select('tableId'),
+        ReservationHold.find({
+          venueId,
+          status: 'active',
+          expiresAt: { $gt: now },
+          $or: [{ startsAt: { $lt: end }, endsAt: { $gt: start } }],
+        }).select('reservableUnitId'),
+      ]);
+
+      const reservationTableIds = overlappingReservations
+        .filter((r) => r.tableId)
+        .map((r) => r.tableId!.toString());
+
+      // Holds may be created against the same underlying unit id as `tableId`.
+      // We treat `reservableUnitId` as the table id for this availability computation.
+      const holdTableIds = overlappingHolds
+        .filter((h) => h.reservableUnitId)
+        .map((h) => h.reservableUnitId!.toString());
+
+      reservedTableIds = new Set([...reservationTableIds, ...holdTableIds]);
+    }
+
+    const result = (placements as any[]).map((p) => {
+      const table = tableMap.get(p.tableId?.toString());
+      const isReserved = reservedTableIds.has(p.tableId?.toString());
+      return {
+        _id: p._id,
+        venueId: p.venueId,
+        tableId: p.tableId,
+        sceneId: p.sceneId,
+        positionType: p.positionType,
+        yaw: p.yaw,
+        pitch: p.pitch,
+        floorIndex: p.floorIndex,
+        anchorPosition: p.anchorPosition,
+        stemVector: p.stemVector,
+        table: table ? {
+          _id: table._id,
+          tableNumber: table.tableNumber,
+          name: table.name,
+          capacity: table.capacity,
+          price: table.price,
+          minimumSpend: table.minimumSpend,
+          defaultStatus: table.defaultStatus,
+          isVip: table.isVip,
+          locationLabel: table.locationLabel,
+          status: isReserved ? 'reserved' : (table.defaultStatus === 'blocked' ? 'blocked' : 'available'),
+        } : null,
+      };
+    }).filter((p) => p.table !== null);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching table placements:', error);
+    res.status(500).json({ error: 'Échec du chargement des placements.' });
+  }
+});
+
 // GET /api/v1/venues — list venues (filters: type, city, categoryId, hasEvent, hasVirtualTour, priceRange, q)
 router.get('/', async (req, res) => {
   try {
-    const { type, city, categoryId, hasEvent, hasVirtualTour, priceMin, priceMax, q } = req.query;
-    const filter: Record<string, unknown> = {};
+    const { type, city, governorate, categoryId, hasEvent, hasVirtualTour, isSponsored, isFeatured, priceMin, priceMax, q } = req.query;
+    const filter: Record<string, unknown> = { isPublished: true };
     if (type) filter.type = String(type).toUpperCase();
     if (city) filter.city = city;
+    if (governorate) filter.governorate = String(governorate);
     if (categoryId && mongoose.Types.ObjectId.isValid(categoryId as string)) {
       filter.categoryIds = new mongoose.Types.ObjectId(categoryId as string);
     }
+    if (isSponsored === 'true') filter.isSponsored = true;
+    if (isFeatured === 'true') filter.isFeatured = true;
     if (priceMin != null && priceMin !== '') filter.priceRangeMin = { $gte: Number(priceMin) };
     if (priceMax != null && priceMax !== '') filter.priceRangeMax = { $lte: Number(priceMax) };
     if (q && String(q).trim()) {
       filter.$text = { $search: String(q).trim() };
     }
 
-    let venues = await Venue.find(filter).sort({ rating: -1, isFeatured: -1 }).lean();
+    let venues = await Venue.find(filter).sort({ sponsoredOrder: 1, rating: -1, isFeatured: -1 }).lean();
 
     const venueIds = venues.map((v) => (v as any)._id);
     const [venuesWithEvents, venueIdsWithTours] = await Promise.all([

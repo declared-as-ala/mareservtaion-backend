@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import categoriesRouter from './routes/categories';
+import tagsRouter from './routes/tags';
+import metaRouter from './routes/meta';
 import venuesRouter from './routes/venues';
 import tablesRouter from './routes/tables';
 import eventsRouter from './routes/events';
@@ -12,12 +14,25 @@ import reservationsRouter from './routes/reservations';
 import authRouter from './routes/auth';
 import searchRouter from './routes/search';
 import adminRouter from './routes/admin';
+import uploadsRouter from './routes/uploads';
+import organizerRouter from './routes/organizer';
+import sosConseilRouter from './routes/sos-conseil';
+import favoritesRouter from './routes/favorites';
+import reviewsRouter from './routes/reviews';
+import scenesRouter from './routes/scenes';
+import menuItemsRouter from './routes/menuItems';
+import { errorMiddleware } from './middlewares/error.middleware';
+import { apiLimiter } from './middlewares/rateLimit.middleware';
+import path from 'path';
 
 dotenv.config();
 
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+
 const app = express();
-const CORS_ORIGIN = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000';
 const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
   'http://localhost:5173',
   'https://mareservtaion-frontend.vercel.app',
   CORS_ORIGIN,
@@ -33,6 +48,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.get('/', (req, res) => {
   res.status(200).json({
@@ -47,7 +63,7 @@ app.get('/', (req, res) => {
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.get('/favicon.png', (req, res) => res.status(204).end());
 
-// API v1 — primary
+// API v1 — primary (rate limited)
 app.get('/api/v1/health', (req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
   res.status(dbConnected ? 200 : 503).json({
@@ -57,13 +73,24 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
+app.use('/api/v1', apiLimiter);
+app.use('/api/v1/categories', categoriesRouter);
+app.use('/api/v1/tags', tagsRouter);
+app.use('/api/v1/meta', metaRouter);
 app.use('/api/v1/venues', venuesRouter);
 app.use('/api/v1/tables', tablesRouter);
 app.use('/api/v1/events', eventsRouter);
 app.use('/api/v1/reservations', reservationsRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/search', searchRouter);
+app.use('/api/v1/uploads', uploadsRouter);
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/organizer', organizerRouter);
+app.use('/api/v1/sos-conseil', sosConseilRouter);
+app.use('/api/v1/favorites', favoritesRouter);
+app.use('/api/v1/reviews', reviewsRouter);
+app.use('/api/v1/scenes', scenesRouter);
+app.use('/api/v1/menu', menuItemsRouter);
 
 // Legacy /api/* (backward compatibility during migration)
 app.get('/health', (req, res) => {
@@ -82,19 +109,19 @@ app.use('/api/reservations', reservationsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/menu', menuItemsRouter);
 
-app.use((err: any, req: express.Request, res: express.Response) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-// Explicit 404 — ensures clear JSON response for unknown routes (avoids ambiguous NOT_FOUND)
+// Explicit 404 — ensures clear JSON response for unknown routes
 app.use((req, res) => {
   res.status(404).json({
+    success: false,
     error: 'Not Found',
     path: req.path,
     message: 'Use /api/v1/* endpoints. Health check at GET /api/v1/health',
   });
 });
+
+// Centralized error handler (must be last)
+app.use(errorMiddleware);
 
 export default app;

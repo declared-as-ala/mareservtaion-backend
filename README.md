@@ -28,6 +28,14 @@ cp env.example .env
 - `npm run build` — Compiler TypeScript
 - `npm start` — Démarrer en production locale
 - `npm run seed` — Peupler la base (catégories, utilisateurs, lieux, visites 360°, hotspots, réservations)
+
+### Comptes après seed (mot de passe : `password123`)
+
+| Rôle     | Email                  |
+|----------|------------------------|
+| **Admin** | `admin@mareservation.tn` |
+| Client   | `client1@example.com` … `client5@example.com` |
+
 - `npm run build:vercel` — Bundle pour Vercel (génère api/index.mjs)
 
 ## Déploiement sur Vercel

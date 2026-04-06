@@ -5,4 +5,4 @@ api/handler.mjs
 .env.local
 .env.*.local
 *.log
-.DS_Store
+.DS_Storeuploads/

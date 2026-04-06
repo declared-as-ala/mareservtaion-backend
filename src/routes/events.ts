@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { Event } from '../models/Event';
+import { EventSession } from '../models/EventSession';
 import { Venue } from '../models/Venue';
 
 const router = Router();
@@ -26,6 +27,25 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Failed to fetch events' });
+  }
+});
+
+// GET /api/v1/events/:id/sessions — list sessions for an event
+router.get('/:id/sessions', async (req, res) => {
+  try {
+    const idOrSlug = req.params.id;
+    const event = await (mongoose.Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24
+      ? Event.findById(idOrSlug)
+      : Event.findOne({ slug: idOrSlug })
+    ).lean();
+    if (!event) return res.status(404).json({ error: 'Événement non trouvé' });
+    const sessions = await EventSession.find({ eventId: (event as any)._id })
+      .sort({ startsAt: 1 })
+      .lean();
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error fetching event sessions:', error);
+    res.status(500).json({ error: 'Échec du chargement des sessions.' });
   }
 });
 
