@@ -1,8 +1,18 @@
-import axios from 'axios';
 import { getEnv } from '../config/env';
 import { logger } from '../config/logger';
 
 const env = getEnv();
+
+type JsonRecord = Record<string, any>;
+
+async function parseJsonSafe(response: Response): Promise<JsonRecord> {
+  try {
+    const data = await response.json();
+    return (data ?? {}) as JsonRecord;
+  } catch {
+    return {};
+  }
+}
 
 export interface KonnectPaymentIntentRequest {
   amount: number;
@@ -49,9 +59,13 @@ export class KonnectPaymentService {
     request: KonnectPaymentIntentRequest
   ): Promise<KonnectPaymentIntentResponse> {
     try {
-      const response = await axios.post(
-        `${this.baseUrl}/payment_intents`,
-        {
+      const response = await fetch(`${this.baseUrl}/payment_intents`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           amount: request.amount,
           currency: request.currency,
           customer: {
@@ -63,50 +77,52 @@ export class KonnectPaymentService {
           },
           entity_id: this.entityId,
           webhook_url: request.webhookUrl || `${env.FRONTEND_URL}/api/payment/webhook`,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+        }),
+      });
+
+      const data = await parseJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(data?.message || `Konnect API error (${response.status})`);
+      }
 
       return {
-        id: response.data.id,
-        status: response.data.status,
-        paymentUrl: response.data.payment_url,
-        clientSecret: response.data.client_secret,
+        id: data.id,
+        status: data.status,
+        paymentUrl: data.payment_url,
+        clientSecret: data.client_secret,
       };
     } catch (error: any) {
-      logger.error('Konnect createPaymentIntent failed:', error.response?.data || error.message);
-      throw new Error(`Failed to create payment intent: ${error.response?.data?.message || error.message}`);
+      logger.error('Konnect createPaymentIntent failed:', error?.message || error);
+      throw new Error(`Failed to create payment intent: ${error?.message || 'Unknown error'}`);
     }
   }
 
   async verifyPayment(paymentId: string): Promise<KonnectWebhookPayload> {
     try {
-      const response = await axios.get(
-        `${this.baseUrl}/payment_intents/${paymentId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.secretKey}`,
-          },
-        }
-      );
+      const response = await fetch(`${this.baseUrl}/payment_intents/${paymentId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.secretKey}`,
+        },
+      });
+
+      const data = await parseJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(data?.message || `Konnect API error (${response.status})`);
+      }
 
       return {
-        paymentId: response.data.id,
-        status: response.data.status === 'completed' ? 'SUCCESS' : 'FAILED',
-        amount: response.data.amount,
-        currency: response.data.currency,
-        orderId: response.data.order?.id,
-        transactionRef: response.data.transaction_ref,
-        metadata: response.data.metadata,
+        paymentId: data.id,
+        status: data.status === 'completed' ? 'SUCCESS' : 'FAILED',
+        amount: data.amount,
+        currency: data.currency,
+        orderId: data.order?.id,
+        transactionRef: data.transaction_ref,
+        metadata: data.metadata,
       };
     } catch (error: any) {
-      logger.error('Konnect verifyPayment failed:', error.response?.data || error.message);
-      throw new Error(`Failed to verify payment: ${error.response?.data?.message || error.message}`);
+      logger.error('Konnect verifyPayment failed:', error?.message || error);
+      throw new Error(`Failed to verify payment: ${error?.message || 'Unknown error'}`);
     }
   }
 
