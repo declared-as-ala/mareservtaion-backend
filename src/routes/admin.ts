@@ -13,7 +13,6 @@ import { Tag } from '../models/Tag';
 import { Zone } from '../models/Zone';
 import { ReservableUnit } from '../models/ReservableUnit';
 import { BannerSlide } from '../models/BannerSlide';
-import { SponsoredPlacement } from '../models/SponsoredPlacement';
 import { AppSettings } from '../models/AppSettings';
 import { TablePlacement } from '../models/TablePlacement';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
@@ -315,7 +314,7 @@ router.get('/venues', async (req, res) => {
     }
 
     const [venues, total] = await Promise.all([
-      Venue.find(filter).sort({ rating: -1 }).skip(skip).limit(limit).lean(),
+      Venue.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Venue.countDocuments(filter),
     ]);
 
@@ -342,7 +341,7 @@ router.get('/venues', async (req, res) => {
 // POST /api/admin/venues
 router.post('/venues', async (req, res) => {
   try {
-    const { name, type, city, address, description, shortDescription, coverImage, gallery, isPublished, isFeatured, isSponsored, startingPrice, phone, slug, immersiveType, immersiveSourceType, immersiveProvider, immersiveUrl, immersiveFile, immersiveMeta } = req.body;
+    const { name, type, city, address, description, shortDescription, coverImage, gallery, isPublished, isFeatured, isVedette, startingPrice, phone, slug, immersiveType, immersiveSourceType, immersiveProvider, immersiveUrl, immersiveFile, immersiveMeta } = req.body;
     if (!name || !type || !city || !address) {
       return res.status(400).json({ error: 'name, type, city et address requis.' });
     }
@@ -374,7 +373,7 @@ router.post('/venues', async (req, res) => {
       gallery: Array.isArray(gallery) ? gallery : [],
       isPublished: isPublished !== false,
       isFeatured: !!isFeatured,
-      isSponsored: !!isSponsored,
+      isVedette: !!isVedette,
       startingPrice: startingPrice != null ? Number(startingPrice) : undefined,
       phone: phone || undefined,
       slug: slugVal,
@@ -397,7 +396,7 @@ router.patch('/venues/:id', async (req, res) => {
   try {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'ID invalide.' });
-    const { name, type, city, address, description, shortDescription, coverImage, gallery, isPublished, isFeatured, isSponsored, sponsoredOrder, bannerImage, startingPrice, phone, slug, immersiveType, immersiveSourceType, immersiveProvider, immersiveUrl, immersiveFile, immersiveMeta } = req.body;
+    const { name, type, city, address, description, shortDescription, coverImage, gallery, isPublished, isFeatured, isVedette, vedetteOrder, bannerImage, startingPrice, phone, slug, immersiveType, immersiveSourceType, immersiveProvider, immersiveUrl, immersiveFile, immersiveMeta } = req.body;
     const update: Record<string, unknown> = {};
     if (name != null) update.name = name;
     if (type != null) update.type = String(type).toUpperCase();
@@ -409,8 +408,8 @@ router.patch('/venues/:id', async (req, res) => {
     if (gallery !== undefined) update.gallery = Array.isArray(gallery) ? gallery : [];
     if (isPublished !== undefined) update.isPublished = !!isPublished;
     if (isFeatured !== undefined) update.isFeatured = !!isFeatured;
-    if (isSponsored !== undefined) update.isSponsored = !!isSponsored;
-    if (sponsoredOrder !== undefined) update.sponsoredOrder = Number(sponsoredOrder) || 0;
+    if (isVedette !== undefined) update.isVedette = !!isVedette;
+    if (vedetteOrder !== undefined) update.vedetteOrder = Number(vedetteOrder) || 0;
     if (bannerImage !== undefined) update.bannerImage = bannerImage || null;
     if (startingPrice !== undefined) update.startingPrice = startingPrice != null ? Number(startingPrice) : undefined;
     if (phone !== undefined) update.phone = phone;
@@ -509,7 +508,7 @@ router.get('/events', async (req, res) => {
 // POST /api/admin/events
 router.post('/events', async (req, res) => {
   try {
-    const { venueId, title, type, description, startAt, endsAt, coverImage, afficheImageUrl, isPublished, isSponsored } = req.body;
+    const { venueId, title, type, description, startAt, endsAt, coverImage, afficheImageUrl, isPublished, isVedette } = req.body;
     if (!venueId || !title || !startAt) {
       return res.status(400).json({ error: 'venueId, title et startAt requis.' });
     }
@@ -524,7 +523,7 @@ router.post('/events', async (req, res) => {
       coverImage: coverImage || afficheImageUrl || undefined,
       afficheImageUrl: afficheImageUrl || coverImage || undefined,
       isPublished: isPublished !== false,
-      isSponsored: !!isSponsored,
+      isVedette: !!isVedette,
       slug,
     });
     res.status(201).json(event);
@@ -539,7 +538,7 @@ router.patch('/events/:id', async (req, res) => {
   try {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'ID invalide.' });
-    const { venueId, title, type, description, startAt, endsAt, coverImage, afficheImageUrl, isPublished, isSponsored } = req.body;
+    const { venueId, title, type, description, startAt, endsAt, coverImage, afficheImageUrl, isPublished, isVedette } = req.body;
     const update: Record<string, unknown> = {};
     if (venueId != null) update.venueId = venueId;
     if (title != null) update.title = title;
@@ -550,7 +549,7 @@ router.patch('/events/:id', async (req, res) => {
     if (coverImage !== undefined) update.coverImage = coverImage;
     if (afficheImageUrl !== undefined) update.afficheImageUrl = afficheImageUrl;
     if (isPublished !== undefined) update.isPublished = !!isPublished;
-    if (isSponsored !== undefined) update.isSponsored = !!isSponsored;
+    if (isVedette !== undefined) update.isVedette = !!isVedette;
     const event = await Event.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!event) return res.status(404).json({ error: 'Événement introuvable.' });
     res.json(event);
@@ -1223,49 +1222,6 @@ router.delete('/banner-slides/:id', async (req, res) => {
     res.status(500).json({ error: 'Erreur.' });
   }
 });
-
-// --- Sponsored placements CRUD ---
-router.get('/sponsored-placements', async (req, res) => {
-  try {
-    const key = req.query.placementKey as string;
-    const filter = key ? { placementKey: key, isActive: true } : {};
-    const list = await SponsoredPlacement.find(filter).sort({ priority: -1 }).lean();
-    res.json({ success: true, data: list });
-  } catch (error) {
-    console.error('Error fetching sponsored placements:', error);
-    res.status(500).json({ error: 'Erreur.' });
-  }
-});
-router.post('/sponsored-placements', async (req, res) => {
-  try {
-    const placement = await SponsoredPlacement.create(req.body);
-    res.status(201).json({ success: true, data: placement });
-  } catch (error) {
-    console.error('Error creating sponsored placement:', error);
-    res.status(500).json({ error: 'Erreur.' });
-  }
-});
-router.patch('/sponsored-placements/:id', async (req, res) => {
-  try {
-    const placement = await SponsoredPlacement.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
-    if (!placement) return res.status(404).json({ error: 'Placement introuvable.' });
-    res.json({ success: true, data: placement });
-  } catch (error) {
-    console.error('Error updating sponsored placement:', error);
-    res.status(500).json({ error: 'Erreur.' });
-  }
-});
-router.delete('/sponsored-placements/:id', async (req, res) => {
-  try {
-    const r = await SponsoredPlacement.findByIdAndDelete(req.params.id);
-    if (!r) return res.status(404).json({ error: 'Placement introuvable.' });
-    res.json({ success: true, message: 'Placement supprimé.' });
-  } catch (error) {
-    console.error('Error deleting sponsored placement:', error);
-    res.status(500).json({ error: 'Erreur.' });
-  }
-});
-
 // --- Settings (GET + PATCH singleton) ---
 router.get('/settings', async (_req, res) => {
   try {

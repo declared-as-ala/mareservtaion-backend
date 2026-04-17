@@ -16,13 +16,13 @@ export const apiLimiter = rateLimit({
 /**
  * Stricter limit for auth routes (login/register already have their own in auth routes).
  */
-export const authLimiter = rateLimit({
-  windowMs,
-  max: 20,
-  message: { success: false, message: 'Trop de tentatives. Réessayez dans 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// export const authLimiter = rateLimit({
+//   windowMs,
+//   max: 20,
+//   message: { success: false, message: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
 
 /**
  * Limit for reservation creation to prevent abuse.

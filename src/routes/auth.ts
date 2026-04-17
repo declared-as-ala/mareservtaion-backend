@@ -5,41 +5,55 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { User } from '../models/User';
 import { RefreshToken } from '../models/RefreshToken';
+import { PasswordReset } from '../models/PasswordReset';
+import { EmailVerification } from '../models/EmailVerification';
+import { LoginAttempt } from '../models/LoginAttempt';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { getEnv } from '../config/env';
+import { sendEmail, createPasswordResetTemplate, createEmailVerificationTemplate } from '../services/email.service';
+import { logAudit } from '../utils/audit.util';
+import { validatePasswordStrength } from '../utils/password.util';
+import { logger } from '../config/logger';
 
 const router = Router();
+const env = getEnv();
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || process.env.JWT_SECRET || JWT_SECRET;
-const ACCESS_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m';
+const ACCESS_EXPIRY = env.ACCESS_TOKEN_EXPIRY;
 const REFRESH_EXPIRY_DAYS = 7;
-const COOKIE_NAME = 'refreshToken';
+const REFRESH_COOKIE_NAME = 'refreshToken';
+const ACCESS_COOKIE_NAME = 'accessToken';
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function setRefreshCookie(res: Response, token: string) {
-  const maxAge = REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-  res.cookie(COOKIE_NAME, token, {
+function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+  const accessMaxAge = 15 * 60 * 1000; // 15 min
+  const refreshMaxAge = REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  const isProd = process.env.NODE_ENV === 'production';
+
+  res.cookie(ACCESS_COOKIE_NAME, accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProd,
     sameSite: 'lax',
-    maxAge,
-    path: '/api',
+    maxAge: accessMaxAge,
+    path: '/',
+  });
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: refreshMaxAge,
+    path: '/',
   });
 }
 
-function clearRefreshCookie(res: Response) {
-  res.clearCookie(COOKIE_NAME, { path: '/api' });
+function clearAuthCookies(res: Response) {
+  res.clearCookie(ACCESS_COOKIE_NAME, { path: '/' });
+  res.clearCookie(REFRESH_COOKIE_NAME, { path: '/' });
 }
 
 // POST /api/auth/register and POST /api/auth/signup (body.name accepted as fullName)
@@ -60,8 +74,14 @@ router.post(['/register', '/signup'], async (req, res) => {
     if (!password || typeof password !== 'string') {
       return res.status(400).json({ error: 'Le mot de passe est obligatoire.' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères.' });
+
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({
+        error: 'Le mot de passe ne respecte pas les exigences de sécurité.',
+        details: passwordValidation.errors
+      });
     }
 
     const emailLower = email.trim().toLowerCase();
@@ -82,9 +102,38 @@ router.post(['/register', '/signup'], async (req, res) => {
     });
     await user.save();
 
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    const emailVerification = new EmailVerification({
+      userId: user._id,
+      tokenHash: verificationTokenHash,
+      expiresAt: verificationExpires,
+    });
+    await emailVerification.save();
+
+    // Send verification email
+    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+    const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    const emailTemplate = createEmailVerificationTemplate(user.fullName, verificationUrl);
+
+    // Don't wait for email to send, let it happen in background
+    sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      text: emailTemplate.text,
+    }).then((sent) => {
+      if (sent) {
+        logger.info(`Verification email sent to ${user.email}`);
+      }
+    });
+
     const accessToken = jwt.sign(
       { userId: user._id.toString(), role: user.role },
-      JWT_SECRET,
+      env.JWT_SECRET,
       { expiresIn: ACCESS_EXPIRY } as jwt.SignOptions
     );
     const refreshTokenValue = crypto.randomBytes(40).toString('hex');
@@ -94,27 +143,36 @@ router.post(['/register', '/signup'], async (req, res) => {
       expiresAt: new Date(Date.now() + REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
     });
     await refreshTokenDoc.save();
-    setRefreshCookie(res, refreshTokenValue);
+    setAuthCookies(res, accessToken, refreshTokenValue);
+
+    // Log audit
+    await logAudit(req, {
+      action: 'USER_CREATED',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+      details: { email: user.email },
+    });
 
     res.status(201).json({
-      message: 'Compte créé avec succès',
+      message: 'Compte créé avec succès. Un email de vérification a été envoyé.',
       accessToken,
-      expiresIn: 900, // 15 min in seconds
       user: {
         id: user._id,
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        emailVerified: user.emailVerified,
       },
     });
   } catch (error) {
-    console.error('Error creating user:', error);
+    logger.error('Error creating user:', error);
     res.status(500).json({ error: 'Erreur lors de la création du compte.' });
   }
 });
 
-// POST /api/auth/login (rate limited)
-router.post('/login', loginLimiter, async (req, res) => {
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -128,12 +186,26 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+      // Log failed attempt
+      await LoginAttempt.create({
+        email: email.toLowerCase(),
+        ipAddress: req.ip || req.connection.remoteAddress,
+        success: false,
+        userAgent: req.headers['user-agent'],
+      });
+
+      return res.status(401).json({
+        error: 'Email ou mot de passe incorrect.'
+      });
     }
+
+    // Successful login
+    user.lastLoginAt = new Date();
+    await user.save();
 
     const accessToken = jwt.sign(
       { userId: user._id.toString(), role: user.role },
-      JWT_SECRET,
+      env.JWT_SECRET,
       { expiresIn: ACCESS_EXPIRY } as jwt.SignOptions
     );
     const refreshTokenValue = crypto.randomBytes(40).toString('hex');
@@ -142,21 +214,37 @@ router.post('/login', loginLimiter, async (req, res) => {
       token: refreshTokenValue,
       expiresAt: new Date(Date.now() + REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
     });
-    setRefreshCookie(res, refreshTokenValue);
+    setAuthCookies(res, accessToken, refreshTokenValue);
+
+    // Log successful login
+    await LoginAttempt.create({
+      email: email.toLowerCase(),
+      ipAddress: req.ip || req.connection.remoteAddress,
+      success: true,
+      userAgent: req.headers['user-agent'],
+    });
+
+    await logAudit(req, {
+      action: 'LOGIN',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+      details: { success: true },
+    });
 
     res.json({
       message: 'Connexion réussie',
       accessToken,
-      expiresIn: 900,
       user: {
         id: user._id,
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        emailVerified: user.emailVerified,
       },
     });
   } catch (error) {
-    console.error('Error logging in:', error);
+    logger.error('Error logging in:', error);
     res.status(500).json({ error: 'Erreur de connexion.' });
   }
 });
@@ -164,7 +252,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 // POST /api/auth/refresh — rotate refresh token, return new access token
 router.post('/refresh', async (req, res) => {
   try {
-    const token = req.cookies?.[COOKIE_NAME];
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
     if (!token) {
       return res.status(401).json({ error: 'Refresh token manquant.' });
     }
@@ -172,14 +260,14 @@ router.post('/refresh', async (req, res) => {
     const stored = await RefreshToken.findOne({ token });
     if (!stored || stored.expiresAt < new Date()) {
       if (stored) await RefreshToken.deleteOne({ _id: stored._id });
-      clearRefreshCookie(res);
+      clearAuthCookies(res);
       return res.status(401).json({ error: 'Session expirée. Veuillez vous reconnecter.' });
     }
 
     const user = await User.findById((stored as any).userId);
     if (!user) {
       await RefreshToken.deleteOne({ _id: stored._id });
-      clearRefreshCookie(res);
+      clearAuthCookies(res);
       return res.status(401).json({ error: 'Utilisateur introuvable.' });
     }
 
@@ -191,17 +279,14 @@ router.post('/refresh', async (req, res) => {
       token: newRefresh,
       expiresAt: new Date(Date.now() + REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
     });
-    setRefreshCookie(res, newRefresh);
-
     const accessToken = jwt.sign(
       { userId: user._id.toString(), role: user.role },
-      JWT_SECRET,
+      env.JWT_SECRET,
       { expiresIn: ACCESS_EXPIRY } as jwt.SignOptions
     );
+    setAuthCookies(res, accessToken, newRefresh);
 
     res.json({
-      accessToken,
-      expiresIn: 900,
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -237,15 +322,312 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
 // POST /api/auth/logout
 router.post('/logout', authenticate, async (req: AuthRequest, res) => {
   try {
-    const token = req.cookies?.[COOKIE_NAME];
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
     if (token) {
       await RefreshToken.deleteOne({ token });
     }
-    clearRefreshCookie(res);
+    clearAuthCookies(res);
+
+    await logAudit(req, {
+      action: 'LOGOUT',
+      userId: req.userId,
+    });
+
     res.json({ message: 'Déconnexion réussie.' });
   } catch (error) {
-    clearRefreshCookie(res);
+    clearAuthCookies(res);
     res.json({ message: 'Déconnexion réussie.' });
+  }
+});
+
+// ==================== PASSWORD RESET FLOW ====================
+
+// POST /api/auth/forgot-password - Request password reset
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email est obligatoire.' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.json({ message: 'Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.' });
+    }
+
+    // Delete any existing reset tokens for this user
+    await PasswordReset.deleteMany({ userId: user._id });
+
+    // Generate new reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    const passwordReset = new PasswordReset({
+      userId: user._id,
+      tokenHash: resetTokenHash,
+      expiresAt: resetExpires,
+    });
+    await passwordReset.save();
+
+    // Send reset email
+    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+    const emailTemplate = createPasswordResetTemplate(user.fullName, resetUrl);
+
+    const emailSent = await sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      text: emailTemplate.text,
+    });
+
+    if (emailSent) {
+      logger.info(`Password reset email sent to ${user.email}`);
+    }
+
+    await logAudit(req, {
+      action: 'PASSWORD_RESET',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+      details: { emailSent },
+    });
+
+    res.json({ message: 'Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.' });
+  } catch (error) {
+    logger.error('Error in forgot-password:', error);
+    res.status(500).json({ error: 'Erreur lors de la demande de réinitialisation.' });
+  }
+});
+
+// POST /api/auth/reset-password - Reset password with token
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token de réinitialisation invalide.' });
+    }
+
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Nouveau mot de passe obligatoire.' });
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({
+        error: 'Le mot de passe ne respecte pas les exigences de sécurité.',
+        details: passwordValidation.errors,
+      });
+    }
+
+    // Hash the token to find it in DB
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const resetRecord = await PasswordReset.findOne({
+      tokenHash,
+      used: false,
+    }).populate('userId');
+
+    if (!resetRecord || resetRecord.expiresAt < new Date()) {
+      if (resetRecord) await PasswordReset.deleteOne({ _id: resetRecord._id });
+      return res.status(400).json({ error: 'Lien de réinitialisation expiré ou invalide.' });
+    }
+
+    const user = resetRecord.userId as any;
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(password, 10);
+    user.passwordHash = passwordHash;
+    await user.save();
+
+    // Mark reset token as used
+    resetRecord.used = true;
+    await resetRecord.save();
+
+    // Delete all other reset tokens for this user
+    await PasswordReset.deleteMany({
+      userId: user._id,
+      _id: { $ne: resetRecord._id },
+    });
+
+    await logAudit(req, {
+      action: 'PASSWORD_RESET',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+      details: { success: true },
+    });
+
+    res.json({ message: 'Mot de passe réinitialisé avec succès.' });
+  } catch (error) {
+    logger.error('Error in reset-password:', error);
+    res.status(500).json({ error: 'Erreur lors de la réinitialisation du mot de passe.' });
+  }
+});
+
+// ==================== EMAIL VERIFICATION FLOW ====================
+
+// GET /api/auth/verify-email - Verify email with token
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token de vérification invalide.' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const verificationRecord = await EmailVerification.findOne({
+      tokenHash,
+      used: false,
+    }).populate('userId');
+
+    if (!verificationRecord || verificationRecord.expiresAt < new Date()) {
+      if (verificationRecord) await EmailVerification.deleteOne({ _id: verificationRecord._id });
+      return res.status(400).json({ error: 'Lien de vérification expiré ou invalide.' });
+    }
+
+    const user = verificationRecord.userId as any;
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    // Mark email as verified
+    user.emailVerified = true;
+    await user.save();
+
+    // Mark verification token as used
+    verificationRecord.used = true;
+    await verificationRecord.save();
+
+    await logAudit(req, {
+      action: 'EMAIL_VERIFICATION',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+    });
+
+    // Redirect to frontend success page
+    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/email-verified?success=true`);
+  } catch (error) {
+    logger.error('Error in verify-email:', error);
+    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/email-verified?success=false`);
+  }
+});
+
+// POST /api/auth/resend-verification - Resend verification email
+router.post('/resend-verification', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Non authentifié.' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({ error: 'Email déjà vérifié.' });
+    }
+
+    // Delete existing verification token
+    await EmailVerification.deleteOne({ userId: user._id });
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    const emailVerification = new EmailVerification({
+      userId: user._id,
+      tokenHash: verificationTokenHash,
+      expiresAt: verificationExpires,
+    });
+    await emailVerification.save();
+
+    // Send verification email
+    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+    const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    const emailTemplate = createEmailVerificationTemplate(user.fullName, verificationUrl);
+
+    const emailSent = await sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      text: emailTemplate.text,
+    });
+
+    if (!emailSent) {
+      return res.status(500).json({ error: "Erreur lors de l'envoi de l'email de vérification." });
+    }
+
+    res.json({ message: 'Email de vérification envoyé avec succès.' });
+  } catch (error) {
+    logger.error('Error in resend-verification:', error);
+    res.status(500).json({ error: "Erreur lors du renvoi de l'email de vérification." });
+  }
+});
+
+// POST /api/auth/change-password - Change password (authenticated)
+router.post('/change-password', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Non authentifié.' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Mot de passe actuel et nouveau mot de passe sont obligatoires.' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    // Verify current password
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
+    }
+
+    // Validate new password strength
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({
+        error: 'Le nouveau mot de passe ne respecte pas les exigences de sécurité.',
+        details: passwordValidation.errors,
+      });
+    }
+
+    // Hash new password
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    await logAudit(req, {
+      action: 'PASSWORD_CHANGE',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+    });
+
+    res.json({ message: 'Mot de passe modifié avec succès.' });
+  } catch (error) {
+    logger.error('Error in change-password:', error);
+    res.status(500).json({ error: 'Erreur lors du changement de mot de passe.' });
   }
 });
 

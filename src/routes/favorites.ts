@@ -14,7 +14,7 @@ router.get('/', async (req: AuthRequest, res) => {
   try {
     const favorites = await Favorite.find({ userId: req.userId })
       .sort({ createdAt: -1 })
-      .populate('venueId', 'name slug type city coverImage rating startingPrice hasVirtualTour isFeatured isPublished')
+      .populate('venueId', 'name slug type city coverImage startingPrice hasVirtualTour isFeatured isPublished')
       .lean();
 
     const venues = favorites

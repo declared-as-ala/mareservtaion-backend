@@ -1,35 +1,67 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
+
+export type AuditAction =
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'PASSWORD_RESET'
+  | 'PASSWORD_CHANGE'
+  | 'EMAIL_VERIFICATION'
+  | 'USER_CREATED'
+  | 'USER_UPDATED'
+  | 'USER_DELETED'
+  | 'RESERVATION_CREATED'
+  | 'RESERVATION_CANCELLED'
+  | 'RESERVATION_CHECKED_IN'
+  | 'PAYMENT_INITIATED'
+  | 'PAYMENT_COMPLETED'
+  | 'PAYMENT_FAILED'
+  | 'ADMIN_SETTING_CHANGED'
+  | 'VENUE_CREATED'
+  | 'VENUE_UPDATED'
+  | 'VENUE_DELETED'
+  | 'EVENT_CREATED'
+  | 'EVENT_UPDATED'
+  | 'EVENT_DELETED';
 
 export interface IAuditLog extends Document {
-  actorId?: Types.ObjectId;
-  actorRole?: string;
-  action: string;
-  entityType: string;
-  entityId?: string;
-  before?: Record<string, unknown>;
-  after?: Record<string, unknown>;
-  ip?: string;
+  userId?: mongoose.Types.ObjectId;
+  action: AuditAction;
+  entityType?: 'user' | 'reservation' | 'venue' | 'event' | 'payment' | 'setting';
+  entityId?: mongoose.Types.ObjectId;
+  ipAddress?: string;
   userAgent?: string;
-  createdAt: Date;
+  details?: Record<string, any>;
+  timestamp: Date;
 }
 
 const AuditLogSchema = new Schema<IAuditLog>(
   {
-    actorId: { type: Schema.Types.ObjectId, ref: 'User' },
-    actorRole: { type: String },
-    action: { type: String, required: true },
-    entityType: { type: String, required: true },
-    entityId: { type: String },
-    before: { type: Schema.Types.Mixed },
-    after: { type: Schema.Types.Mixed },
-    ip: { type: String },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    action: {
+      type: String, required: true, enum: [
+        'LOGIN', 'LOGOUT', 'PASSWORD_RESET', 'PASSWORD_CHANGE',
+        'EMAIL_VERIFICATION', 'USER_CREATED', 'USER_UPDATED', 'USER_DELETED',
+        'RESERVATION_CREATED', 'RESERVATION_CANCELLED', 'RESERVATION_CHECKED_IN',
+        'PAYMENT_INITIATED', 'PAYMENT_COMPLETED', 'PAYMENT_FAILED',
+        'ADMIN_SETTING_CHANGED', 'VENUE_CREATED', 'VENUE_UPDATED', 'VENUE_DELETED',
+        'EVENT_CREATED', 'EVENT_UPDATED', 'EVENT_DELETED',
+      ]
+    },
+    entityType: { type: String, enum: ['user', 'reservation', 'venue', 'event', 'payment', 'setting'] },
+    entityId: { type: Schema.Types.ObjectId },
+    ipAddress: { type: String },
     userAgent: { type: String },
+    details: { type: Schema.Types.Mixed },
+    timestamp: { type: Date, required: true, default: Date.now },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: false }
 );
 
-AuditLogSchema.index({ actorId: 1, createdAt: -1 });
+AuditLogSchema.index({ action: 1, timestamp: -1 });
+AuditLogSchema.index({ userId: 1, timestamp: -1 });
 AuditLogSchema.index({ entityType: 1, entityId: 1 });
-AuditLogSchema.index({ createdAt: -1 });
+
+// Auto-delete after 90 days
+AuditLogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 export const AuditLog = mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);

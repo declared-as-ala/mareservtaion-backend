@@ -9,13 +9,13 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// const loginLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 10,
+//   message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const ACCESS_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m';
@@ -38,7 +38,7 @@ function clearOrganizerRefreshCookie(res: Response) {
 }
 
 // POST /api/v1/organizer/auth/login
-router.post('/auth/login', loginLimiter, async (req, res) => {
+router.post('/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {

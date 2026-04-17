@@ -1,21 +1,26 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { getEnv } from '../config/env';
 
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+const env = getEnv();
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    // Prefer Bearer token from Authorization header, fall back to httpOnly cookie.
+    let token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      token = req.cookies?.accessToken;
+    }
     if (!token) {
       res.status(401).json({ success: false, error: 'Authentication required', message: 'Token manquant.' });
       return;
     }
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string; role: string };
     req.userId = decoded.userId;
     req.userRole = decoded.role;
     next();

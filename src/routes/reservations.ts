@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import mongoose from 'mongoose';
 import { Reservation } from '../models/Reservation';
 import { ReservationHold } from '../models/ReservationHold';
 import { Table } from '../models/Table';
@@ -10,8 +12,20 @@ import { generateConfirmationCode } from '../utils/confirmationCode';
 import { overlaps } from '../utils/reservationConflict';
 import { generateQRDataURL } from '../utils/qr';
 import { sendSuccess, sendError } from '../utils/apiResponse';
+import { logAudit } from '../utils/audit.util';
+import { logger } from '../config/logger';
 
 const router = Router();
+
+// Rate limit for reservation creation: 10 per 15 minutes per user
+const reservationCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Trop de réservations. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.headers.authorization || ipKeyGenerator(req) || 'unknown',
+});
 
 // POST /api/v1/reservations/check-availability — check if unit is available for time range
 router.post('/check-availability', async (req, res) => {
@@ -58,11 +72,11 @@ router.post('/check-availability', async (req, res) => {
     }).limit(1);
     const activeHolds = reservableUnitId
       ? await ReservationHold.find({
-          reservableUnitId,
-          status: 'active',
-          expiresAt: { $gt: new Date() },
-          $or: [{ startsAt: { $lt: end }, endsAt: { $gt: start } }],
-        }).limit(1)
+        reservableUnitId,
+        status: 'active',
+        expiresAt: { $gt: new Date() },
+        $or: [{ startsAt: { $lt: end }, endsAt: { $gt: start } }],
+      }).limit(1)
       : [];
     const available = existing.length === 0 && activeHolds.length === 0;
     sendSuccess(res, { data: { available, reason: available ? null : 'slot_taken' } });
@@ -120,7 +134,7 @@ router.delete('/holds/:id', authenticate, async (req: AuthRequest, res) => {
 });
 
 // POST /api/v1/reservations — create reservation (TABLE | ROOM | SEAT); prevent conflicts
-router.post('/', authenticate, async (req: AuthRequest, res) => {
+router.post('/', reservationCreateLimiter, authenticate, async (req: AuthRequest, res) => {
   try {
     if (!req.userId) return res.status(401).json({ error: 'Authentication required' });
 

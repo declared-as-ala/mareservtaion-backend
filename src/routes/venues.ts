@@ -199,7 +199,7 @@ router.get('/:id/table-placements', async (req, res) => {
 // GET /api/v1/venues — list venues (filters: type, city, categoryId, hasEvent, hasVirtualTour, priceRange, q)
 router.get('/', async (req, res) => {
   try {
-    const { type, city, governorate, categoryId, hasEvent, hasVirtualTour, isSponsored, isFeatured, priceMin, priceMax, q } = req.query;
+    const { type, city, governorate, categoryId, hasEvent, hasVirtualTour, isVedette, isFeatured, priceMin, priceMax, q } = req.query;
     const filter: Record<string, unknown> = { isPublished: true };
     if (type) filter.type = String(type).toUpperCase();
     if (city) filter.city = city;
@@ -207,7 +207,7 @@ router.get('/', async (req, res) => {
     if (categoryId && mongoose.Types.ObjectId.isValid(categoryId as string)) {
       filter.categoryIds = new mongoose.Types.ObjectId(categoryId as string);
     }
-    if (isSponsored === 'true') filter.isSponsored = true;
+    if (isVedette === 'true') filter.isVedette = true;
     if (isFeatured === 'true') filter.isFeatured = true;
     if (priceMin != null && priceMin !== '') filter.priceRangeMin = { $gte: Number(priceMin) };
     if (priceMax != null && priceMax !== '') filter.priceRangeMax = { $lte: Number(priceMax) };
@@ -215,7 +215,7 @@ router.get('/', async (req, res) => {
       filter.$text = { $search: String(q).trim() };
     }
 
-    let venues = await Venue.find(filter).sort({ sponsoredOrder: 1, rating: -1, isFeatured: -1 }).lean();
+    let venues = await Venue.find(filter).sort({ vedetteOrder: 1, isFeatured: -1, createdAt: -1 }).lean();
 
     const venueIds = venues.map((v) => (v as any)._id);
     const [venuesWithEvents, venueIdsWithTours] = await Promise.all([

@@ -18,9 +18,9 @@ import uploadsRouter from './routes/uploads';
 import organizerRouter from './routes/organizer';
 import sosConseilRouter from './routes/sos-conseil';
 import favoritesRouter from './routes/favorites';
-import reviewsRouter from './routes/reviews';
 import scenesRouter from './routes/scenes';
 import menuItemsRouter from './routes/menuItems';
+import paymentsRouter from './routes/payments';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { apiLimiter } from './middlewares/rateLimit.middleware';
 import path from 'path';
@@ -88,9 +88,9 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/organizer', organizerRouter);
 app.use('/api/v1/sos-conseil', sosConseilRouter);
 app.use('/api/v1/favorites', favoritesRouter);
-app.use('/api/v1/reviews', reviewsRouter);
 app.use('/api/v1/scenes', scenesRouter);
 app.use('/api/v1/menu', menuItemsRouter);
+app.use('/api/v1/payments', paymentsRouter);
 
 // Legacy /api/* (backward compatibility during migration)
 app.get('/health', (req, res) => {

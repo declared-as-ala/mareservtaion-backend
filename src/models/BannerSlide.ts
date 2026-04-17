@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type BannerSlideType = 'category' | 'sponsored_event' | 'sponsored_venue' | 'sponsored_room' | 'generic';
+export type BannerSlideType = 'category' | 'vedette_venue' | 'vedette_event' | 'generic';
 export type ThemeVariant = 'light' | 'dark' | 'gradient' | 'brand';
 
 export interface IBannerSlide extends Document {
@@ -32,7 +32,7 @@ const BannerSlideSchema = new Schema<IBannerSlide>(
     ctaUrl: { type: String },
     imageUrlDesktop: { type: String, required: true },
     imageUrlMobile: { type: String },
-    type: { type: String, enum: ['category', 'sponsored_event', 'sponsored_venue', 'sponsored_room', 'generic'], default: 'generic' },
+    type: { type: String, enum: ['category', 'vedette_venue', 'vedette_event', 'generic'], default: 'generic' },
     linkedCategoryId: { type: Schema.Types.ObjectId, ref: 'Category' },
     linkedEventId: { type: Schema.Types.ObjectId, ref: 'Event' },
     linkedVenueId: { type: Schema.Types.ObjectId, ref: 'Venue' },

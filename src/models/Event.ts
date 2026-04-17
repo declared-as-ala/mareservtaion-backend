@@ -20,7 +20,7 @@ export interface IEvent extends Document {
   endsAt?: Date;
   isPublished: boolean;
   isFeatured?: boolean;
-  isSponsored?: boolean;
+  isVedette?: boolean;
   reservationMode: EventReservationMode;
   status: string;
   ageRestriction?: string;
@@ -50,7 +50,7 @@ const EventSchema = new Schema<IEvent>(
     endsAt: { type: Date },
     isPublished: { type: Boolean, default: true },
     isFeatured: { type: Boolean, default: false },
-    isSponsored: { type: Boolean, default: false },
+    isVedette: { type: Boolean, default: false },
     reservationMode: { type: String, enum: ['table', 'seat_zone', 'seat', 'ticket'], default: 'table' },
     status: { type: String, default: 'scheduled' },
     ageRestriction: { type: String },

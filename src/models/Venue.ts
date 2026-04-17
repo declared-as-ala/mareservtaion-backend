@@ -31,16 +31,13 @@ export interface IVenue extends Document {
   categoryIds?: Types.ObjectId[];
   tagIds?: Types.ObjectId[];
   amenities?: string[];
-  rating: number;
-  ratingCount?: number;
-  ratingAverage?: number;
   startingPrice?: number;
   priceRangeMin?: number;
   priceRangeMax?: number;
   isPublished: boolean;
   isFeatured: boolean;
-  isSponsored?: boolean;
-  sponsoredOrder?: number;
+  isVedette?: boolean;
+  vedetteOrder?: number;
   bannerImage?: string;
   hasVirtualTour?: boolean;
   activeEventTonight?: boolean;
@@ -79,16 +76,13 @@ const VenueSchema = new Schema<IVenue>(
     categoryIds: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
     tagIds: [{ type: Schema.Types.ObjectId, ref: 'Tag' }],
     amenities: { type: [String], default: [] },
-    rating: { type: Number, default: 0, min: 0, max: 5 },
-    ratingAverage: { type: Number, default: 0, min: 0, max: 5 },
-    ratingCount: { type: Number, default: 0 },
     startingPrice: { type: Number, default: 0 },
     priceRangeMin: { type: Number },
     priceRangeMax: { type: Number },
     isPublished: { type: Boolean, default: true },
     isFeatured: { type: Boolean, default: false },
-    isSponsored: { type: Boolean, default: false },
-    sponsoredOrder: { type: Number, default: 0 },
+    isVedette: { type: Boolean, default: false },
+    vedetteOrder: { type: Number, default: 0 },
     bannerImage: { type: String },
     hasVirtualTour: { type: Boolean, default: false },
     activeEventTonight: { type: Boolean, default: false },

@@ -20,6 +20,9 @@ export interface IUser extends Document {
   avatarUrl?: string;
   lastLoginAt?: Date;
   preferences?: IUserPreferences;
+  // Account lockout
+  failedLoginAttempts: number;
+  lockedUntil?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +44,9 @@ const UserSchema = new Schema<IUser>(
       theme: { type: String, enum: ['light', 'dark', 'system'] },
       language: { type: String },
     },
+    // Account lockout
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date },
   },
   { timestamps: true }
 );
