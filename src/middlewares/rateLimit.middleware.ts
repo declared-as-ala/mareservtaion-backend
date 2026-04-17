@@ -1,16 +1,24 @@
 import rateLimit from 'express-rate-limit';
+import type { Request } from 'express';
 
 const windowMs = 15 * 60 * 1000; // 15 minutes
 
-/**
- * General API rate limit (e.g. for /api/v1/*).
- */
+// On Vercel, the real client IP is in X-Forwarded-For
+const keyGenerator = (req: Request) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
+  }
+  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
+};
+
 export const apiLimiter = rateLimit({
   windowMs,
   max: 200,
   message: { success: false, message: 'Trop de requêtes. Réessayez plus tard.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator,
 });
 
 /**
@@ -33,4 +41,5 @@ export const reservationLimiter = rateLimit({
   message: { success: false, message: 'Trop de réservations. Réessayez plus tard.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator,
 });
