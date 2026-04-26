@@ -199,6 +199,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        error: 'Veuillez verifier votre email avant de vous connecter.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
     // Successful login
     user.lastLoginAt = new Date();
     await user.save();
@@ -310,12 +317,73 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
       id: user._id,
       fullName: user.fullName,
       email: user.email,
+      phone: user.phone,
       role: user.role,
+      emailVerified: user.emailVerified,
       createdAt: user.createdAt,
     });
   } catch (error) {
     console.error('Error fetching me:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération du profil.' });
+  }
+});
+
+// PATCH /api/auth/me — update current user profile basics
+router.patch('/me', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.userId) return res.status(401).json({ error: 'Non authentifié.' });
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const { fullName, phone } = req.body ?? {};
+
+    if (fullName !== undefined) {
+      if (typeof fullName !== 'string' || !fullName.trim() || fullName.trim().length < 2) {
+        return res.status(400).json({ error: 'Le nom complet doit contenir au moins 2 caractères.' });
+      }
+      user.fullName = fullName.trim();
+    }
+
+    if (phone !== undefined) {
+      if (phone === null || phone === '') {
+        user.phone = undefined;
+      } else if (typeof phone !== 'string') {
+        return res.status(400).json({ error: 'Numéro de téléphone invalide.' });
+      } else {
+        const cleanedPhone = phone.trim();
+        if (cleanedPhone.length > 30) {
+          return res.status(400).json({ error: 'Numéro de téléphone trop long.' });
+        }
+        user.phone = cleanedPhone;
+      }
+    }
+
+    await user.save();
+
+    await logAudit(req, {
+      action: 'USER_UPDATED',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+      details: { fields: ['fullName', 'phone'] },
+    });
+
+    return res.json({
+      message: 'Profil mis à jour avec succès.',
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    logger.error('Error updating profile:', error);
+    return res.status(500).json({ error: 'Erreur lors de la mise à jour du profil.' });
   }
 });
 
@@ -526,6 +594,49 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
+// POST /api/auth/verify-email-token - verify email token and return JSON state for SPA
+router.post('/verify-email-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token de vérification invalide.' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const verificationRecord = await EmailVerification.findOne({
+      tokenHash,
+      used: false,
+    }).populate('userId');
+
+    if (!verificationRecord || verificationRecord.expiresAt < new Date()) {
+      if (verificationRecord) await EmailVerification.deleteOne({ _id: verificationRecord._id });
+      return res.status(400).json({ error: 'Lien de vérification expiré ou invalide.' });
+    }
+
+    const user = verificationRecord.userId as any;
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    user.emailVerified = true;
+    await user.save();
+    verificationRecord.used = true;
+    await verificationRecord.save();
+
+    await logAudit(req, {
+      action: 'EMAIL_VERIFICATION',
+      userId: user._id,
+      entityType: 'user',
+      entityId: user._id,
+    });
+
+    return res.json({ message: 'Email vérifié avec succès.' });
+  } catch (error) {
+    logger.error('Error in verify-email-token:', error);
+    return res.status(500).json({ error: 'Erreur lors de la vérification email.' });
+  }
+});
+
 // POST /api/auth/resend-verification - Resend verification email
 router.post('/resend-verification', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -577,6 +688,56 @@ router.post('/resend-verification', authenticate, async (req: AuthRequest, res) 
   } catch (error) {
     logger.error('Error in resend-verification:', error);
     res.status(500).json({ error: "Erreur lors du renvoi de l'email de vérification." });
+  }
+});
+
+// POST /api/auth/resend-verification-public - resend verification by email (unauthenticated)
+router.post('/resend-verification-public', async (req, res) => {
+  try {
+    const rawEmail = req.body?.email;
+    if (!rawEmail || typeof rawEmail !== 'string' || !rawEmail.trim()) {
+      return res.status(400).json({ error: "L'email est obligatoire." });
+    }
+
+    const email = rawEmail.trim().toLowerCase();
+    const user = await User.findOne({ email });
+
+    // Keep behavior non-enumerable
+    if (!user) {
+      return res.json({ message: 'Si un compte existe, un email de vérification sera envoyé.' });
+    }
+
+    if (user.emailVerified) {
+      return res.json({ message: 'Compte déjà vérifié.' });
+    }
+
+    await EmailVerification.deleteMany({ userId: user._id });
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await EmailVerification.create({
+      userId: user._id,
+      tokenHash: verificationTokenHash,
+      expiresAt: verificationExpires,
+    });
+
+    const frontendUrl = env.FRONTEND_URL || 'http://localhost:3000';
+    const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    const emailTemplate = createEmailVerificationTemplate(user.fullName, verificationUrl);
+
+    await sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      text: emailTemplate.text,
+    });
+
+    return res.json({ message: 'Si un compte existe, un email de vérification sera envoyé.' });
+  } catch (error) {
+    logger.error('Error in resend-verification-public:', error);
+    return res.status(500).json({ error: "Erreur lors du renvoi de l'email de vérification." });
   }
 });
 

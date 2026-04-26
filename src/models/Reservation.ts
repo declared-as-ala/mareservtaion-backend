@@ -60,6 +60,9 @@ export interface IReservation extends Document {
     unitPrice: number;
   }>;
   menuTotal?: number;
+  reminderEmailSentAt?: Date;
+  reviewRequestSentAt?: Date;
+  cancellationEmailSentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -117,6 +120,9 @@ const ReservationSchema = new Schema<IReservation>(
       unitPrice: { type: Number },
     }],
     menuTotal: { type: Number, default: 0 },
+    reminderEmailSentAt: { type: Date },
+    reviewRequestSentAt: { type: Date },
+    cancellationEmailSentAt: { type: Date },
   },
   { timestamps: true }
 );

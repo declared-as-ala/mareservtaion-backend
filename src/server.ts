@@ -1,14 +1,14 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import { connectDatabase } from './config/database';
 import app from './app';
-
-dotenv.config();
+import { startHoldExpiryLoop } from './jobs/holdExpiry.service';
 
 const PORT = process.env.PORT || 3001;
 
 const startServer = async () => {
   try {
     await connectDatabase();
+    startHoldExpiryLoop();
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });

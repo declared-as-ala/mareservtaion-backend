@@ -16,6 +16,7 @@ import searchRouter from './routes/search';
 import adminRouter from './routes/admin';
 import uploadsRouter from './routes/uploads';
 import organizerRouter from './routes/organizer';
+import ownerRouter from './routes/owner';
 import sosConseilRouter from './routes/sos-conseil';
 import favoritesRouter from './routes/favorites';
 import scenesRouter from './routes/scenes';
@@ -23,6 +24,7 @@ import menuItemsRouter from './routes/menuItems';
 import paymentsRouter from './routes/payments';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { apiLimiter } from './middlewares/rateLimit.middleware';
+import { getEmailHealth } from './services/email.service';
 import path from 'path';
 
 dotenv.config();
@@ -73,6 +75,27 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
+app.get('/api/v1/health/email', async (req, res) => {
+  try {
+    const health = await getEmailHealth();
+    const ok =
+      health.emailFromConfigured &&
+      (health.smtpConfigured ? health.smtpVerified === true : health.resendConfigured);
+
+    res.status(ok ? 200 : 503).json({
+      status: ok ? 'ok' : 'degraded',
+      ...health,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Email health check failed',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 app.use('/api/v1', apiLimiter);
 app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/tags', tagsRouter);
@@ -86,6 +109,7 @@ app.use('/api/v1/search', searchRouter);
 app.use('/api/v1/uploads', uploadsRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/organizer', organizerRouter);
+app.use('/api/v1/owner', ownerRouter);
 app.use('/api/v1/sos-conseil', sosConseilRouter);
 app.use('/api/v1/favorites', favoritesRouter);
 app.use('/api/v1/scenes', scenesRouter);

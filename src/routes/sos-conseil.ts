@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { body, query, validationResult } from 'express-validator';
 import { SOSConseilRequest } from '../models/SOSConseilRequest';
 import { authenticate, requireAdmin } from '../middleware/auth';
+import { sendEmail, createSOSConseilAdminTemplate } from '../services/email.service';
+import { getEnv } from '../config/env';
 
 const router = Router();
 
@@ -65,6 +67,22 @@ router.post(
         details: details || undefined,
         status: 'new',
       });
+
+      // Send admin notification email in background
+      const env = getEnv();
+      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || env.EMAIL_FROM;
+      if (adminEmail) {
+        const template = createSOSConseilAdminTemplate({
+          fullName, phone, email: email || undefined,
+          occasionType, participantsCount: Number(participantsCount),
+          averageAgeRange, preferredRegion, preferredCategory, budgetRange,
+          preferredDate: preferredDate || undefined,
+          preferredTime: preferredTime || undefined,
+          details: details || undefined,
+        });
+        sendEmail({ to: adminEmail, subject: template.subject, html: template.html, text: template.text })
+          .catch((err) => console.error('SOS Conseil email error:', err));
+      }
 
       return res.status(201).json({ success: true, data: request });
     } catch (err) {

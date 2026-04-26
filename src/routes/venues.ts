@@ -13,8 +13,44 @@ import { TablePlacement } from '../models/TablePlacement';
 import { Event } from '../models/Event';
 import { Reservation } from '../models/Reservation';
 import { ReservationHold } from '../models/ReservationHold';
+import { subscribeToVenueAvailability } from '../services/availabilityEvents';
 
 const router = Router();
+
+router.get('/:id/availability-stream', async (req, res) => {
+  try {
+    const idOrSlug = req.params.id;
+    const venue = await (mongoose.Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24
+      ? Venue.findById(idOrSlug)
+      : Venue.findOne({ slug: idOrSlug })
+    ).select('_id').lean();
+
+    if (!venue) return res.status(404).json({ error: 'Lieu non trouve' });
+
+    const venueId = (venue as any)._id.toString();
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    const send = (payload: unknown) => {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    send({ type: 'connected', venueId, at: new Date().toISOString() });
+    const heartbeat = setInterval(() => send({ type: 'heartbeat', at: new Date().toISOString() }), 25000);
+    const unsubscribe = subscribeToVenueAvailability(venueId, (payload) => send(payload));
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      res.end();
+    });
+  } catch (error) {
+    console.error('Availability stream error:', error);
+    res.status(500).json({ error: 'Echec du flux de disponibilite.' });
+  }
+});
 
 // GET /api/v1/venues/:id/virtual-tours — list virtual tours for a venue
 router.get('/:id/virtual-tours', async (req, res) => {
@@ -288,14 +324,26 @@ router.get('/:id', async (req, res) => {
     if (startAt && endAt) {
       const start = new Date(startAt as string);
       const end = new Date(endAt as string);
-      const overlapping = await Reservation.find({
-        venueId,
-        status: { $in: ['PENDING', 'CONFIRMED'] },
-        $or: [{ startAt: { $lt: end }, endAt: { $gt: start } }],
-      });
+      const now = new Date();
+      const [overlapping, activeHolds] = await Promise.all([
+        Reservation.find({
+          venueId,
+          status: { $in: ['PENDING', 'CONFIRMED'] },
+          $or: [{ startAt: { $lt: end }, endAt: { $gt: start } }],
+        }),
+        ReservationHold.find({
+          venueId,
+          status: 'active',
+          expiresAt: { $gt: now },
+          $or: [{ startsAt: { $lt: end }, endsAt: { $gt: start } }],
+        }).select('reservableUnitId'),
+      ]);
       const reservedTableIds = new Set(overlapping.filter((r) => r.tableId).map((r) => r.tableId!.toString()));
       const reservedRoomIds = new Set(overlapping.filter((r) => r.roomId).map((r) => r.roomId!.toString()));
       const reservedSeatIds = new Set(overlapping.filter((r) => r.seatId).map((r) => r.seatId!.toString()));
+      activeHolds.forEach((hold) => {
+        if (hold.reservableUnitId) reservedTableIds.add(hold.reservableUnitId.toString());
+      });
       tablesWithStatus = (tables as any[]).map((t) => ({
         ...t,
         status: reservedTableIds.has(t._id.toString()) ? 'reserved' : 'available',

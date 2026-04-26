@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 
 const windowMs = 15 * 60 * 1000; // 15 minutes
@@ -7,9 +7,10 @@ const windowMs = 15 * 60 * 1000; // 15 minutes
 const keyGenerator = (req: Request) => {
   const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) {
-    return (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
+    const forwardedIp = (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
+    return ipKeyGenerator(forwardedIp);
   }
-  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
+  return ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '');
 };
 
 export const apiLimiter = rateLimit({

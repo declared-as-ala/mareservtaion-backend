@@ -13,6 +13,10 @@ const envSchema = z.object({
   // Email (for verification + password reset)
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().optional(),
+  EMAIL_HOST: z.string().optional(),
+  EMAIL_PORT: z.string().optional().transform((v) => (v ? Number(v) : undefined)),
+  EMAIL_USER: z.string().optional(),
+  EMAIL_PASS: z.string().optional(),
   // Payment gateway (Konnect)
   KONNECT_API_KEY: z.string().optional(),
   KONNECT_SECRET_KEY: z.string().optional(),
@@ -30,10 +34,7 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-let cached: Env | null = null;
-
 export function getEnv(): Env {
-  if (cached) return cached;
   const raw = {
     ...process.env,
     MONGODB_URI: process.env.MONGODB_URI || process.env.MONGO_URI || (process.env.NODE_ENV === 'production' ? undefined : 'mongodb://localhost:27017/mareservation'),
@@ -49,6 +50,5 @@ export function getEnv(): Env {
       throw new Error(`Invalid environment variables: ${JSON.stringify(msg)}`);
     }
   }
-  cached = result.success ? result.data : envSchema.parse(raw);
-  return cached;
+  return result.success ? result.data : envSchema.parse(raw);
 }
