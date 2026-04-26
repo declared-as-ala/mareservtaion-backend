@@ -16,6 +16,8 @@ await esbuild.build({
     'mongoose', 'bcryptjs', 'cookie-parser', 'cors', 'express', 'helmet',
     'jsonwebtoken', 'express-rate-limit', 'express-validator', 'zod', 'multer',
     'cloudinary', 'multer-storage-cloudinary',
+    // CJS + Node builtins (e.g. require("events")) break when inlined into ESM on Vercel
+    'nodemailer',
   ],
   minify: false,
   sourcemap: false,
