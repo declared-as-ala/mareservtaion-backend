@@ -15,17 +15,29 @@ router.post(
     body('phone').trim().notEmpty().withMessage('Le numéro de téléphone est requis'),
     body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Email invalide'),
     body('occasionType')
-      .isIn(['birthday', 'wedding_engagement', 'business_meeting', 'family_event', 'romantic_dinner', 'other'])
+      .isIn([
+        'birthday',
+        'wedding_engagement',
+        'business_meeting',
+        'family_event',
+        'romantic_dinner',
+        'graduation',
+        'corporate',
+        'other',
+      ])
       .withMessage('Type d\'occasion invalide'),
     body('participantsCount').isInt({ min: 1 }).withMessage('Nombre de participants invalide'),
-    body('averageAgeRange')
+    body('averageAgeRanges')
+      .isArray({ min: 1 })
+      .withMessage('Au moins une tranche d\'âge est requise'),
+    body('averageAgeRanges.*')
       .isIn(['18-20', '20-30', '30-40', '40-50', '50-60', '+60'])
       .withMessage('Tranche d\'âge invalide'),
     body('preferredRegion').trim().notEmpty().withMessage('La région est requise'),
     body('preferredCategory')
       .isIn(['cafe', 'restaurant', 'hotel', 'cinema', 'event_space'])
       .withMessage('Catégorie invalide'),
-    body('budgetRange').trim().notEmpty().withMessage('Le budget est requis'),
+    body('budgetRange').optional({ nullable: true, checkFalsy: true }).isString().trim(),
     body('preferredDate').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Date invalide'),
     body('preferredTime').optional({ nullable: true, checkFalsy: true }).trim(),
     body('details').optional({ nullable: true, checkFalsy: true }).trim(),
@@ -43,7 +55,7 @@ router.post(
         email,
         occasionType,
         participantsCount,
-        averageAgeRange,
+        averageAgeRanges,
         preferredRegion,
         preferredCategory,
         budgetRange,
@@ -58,10 +70,10 @@ router.post(
         email: email || undefined,
         occasionType,
         participantsCount: Number(participantsCount),
-        averageAgeRange,
+        averageAgeRanges: [...new Set(averageAgeRanges as string[])],
         preferredRegion,
         preferredCategory,
-        budgetRange,
+        budgetRange: budgetRange || undefined,
         preferredDate: preferredDate ? new Date(preferredDate) : undefined,
         preferredTime: preferredTime || undefined,
         details: details || undefined,
@@ -75,7 +87,9 @@ router.post(
         const template = createSOSConseilAdminTemplate({
           fullName, phone, email: email || undefined,
           occasionType, participantsCount: Number(participantsCount),
-          averageAgeRange, preferredRegion, preferredCategory, budgetRange,
+          averageAgeRanges: [...new Set(averageAgeRanges as string[])],
+          preferredRegion, preferredCategory,
+          budgetRange: budgetRange || undefined,
           preferredDate: preferredDate || undefined,
           preferredTime: preferredTime || undefined,
           details: details || undefined,

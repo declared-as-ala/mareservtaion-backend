@@ -280,10 +280,10 @@ export function createSOSConseilAdminTemplate(data: {
   email?: string;
   occasionType: string;
   participantsCount: number;
-  averageAgeRange: string;
+  averageAgeRanges: string[];
   preferredRegion: string;
   preferredCategory: string;
-  budgetRange: string;
+  budgetRange?: string;
   preferredDate?: string;
   preferredTime?: string;
   details?: string;
@@ -345,10 +345,10 @@ export function createSOSConseilAdminTemplate(data: {
           ${row('📧 Email', data.email)}
           ${row('🎉 Occasion', formatOccasion(data.occasionType))}
           ${row('👥 Participants', String(data.participantsCount) + ' personnes')}
-          ${row('📅 Tranche d\'âge', data.averageAgeRange + ' ans')}
+          ${row('📅 Tranches d\'âge', data.averageAgeRanges.map((r) => `${r} ans`).join(', '))}
           ${row('📍 Région', data.preferredRegion)}
           ${row('🏛️ Catégorie', formatCategory(data.preferredCategory))}
-          ${row('💰 Budget', formatBudget(data.budgetRange), true)}
+          ${data.budgetRange ? row('💰 Budget', formatBudget(data.budgetRange), true) : ''}
           ${data.preferredDate ? row('📆 Date souhaitée', data.preferredDate) : ''}
           ${data.preferredTime ? row('⏰ Heure souhaitée', data.preferredTime) : ''}
         </table>
@@ -379,10 +379,10 @@ Téléphone : ${data.phone}
 ${data.email ? `Email : ${data.email}` : ''}
 Occasion : ${formatOccasion(data.occasionType)}
 Participants : ${data.participantsCount}
-Tranche d'âge : ${data.averageAgeRange} ans
+Tranches d'âge : ${data.averageAgeRanges.map((r) => `${r} ans`).join(', ')}
 Région : ${data.preferredRegion}
 Catégorie : ${formatCategory(data.preferredCategory)}
-Budget : ${formatBudget(data.budgetRange)}
+${data.budgetRange ? `Budget : ${formatBudget(data.budgetRange)}` : ''}
 ${data.preferredDate ? `Date souhaitée : ${data.preferredDate}` : ''}
 ${data.preferredTime ? `Heure souhaitée : ${data.preferredTime}` : ''}
 ${data.details ? `Message : ${data.details}` : ''}

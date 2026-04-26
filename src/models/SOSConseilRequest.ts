@@ -1,15 +1,21 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+const AGE_ENUM = ['18-20', '20-30', '30-40', '40-50', '50-60', '+60'] as const;
+
 export interface ISOSConseilRequest extends Document {
   fullName: string;
   phone: string;
   email?: string;
   occasionType: string;
   participantsCount: number;
-  averageAgeRange: string;
+  /** @deprecated Legacy single value from older submissions; prefer averageAgeRanges. */
+  averageAgeRange?: string;
+  /** One or more age brackets (multi-select). */
+  averageAgeRanges: string[];
   preferredRegion: string;
   preferredCategory: string;
-  budgetRange: string;
+  /** Optional; removed from new forms, kept for legacy rows. */
+  budgetRange?: string;
   preferredDate?: Date;
   preferredTime?: string;
   details?: string;
@@ -26,13 +32,32 @@ const SOSConseilRequestSchema = new Schema<ISOSConseilRequest>(
     occasionType: {
       type: String,
       required: true,
-      enum: ['birthday', 'wedding_engagement', 'business_meeting', 'family_event', 'romantic_dinner', 'other'],
+      enum: [
+        'birthday',
+        'wedding_engagement',
+        'business_meeting',
+        'family_event',
+        'romantic_dinner',
+        'graduation',
+        'corporate',
+        'other',
+      ],
     },
     participantsCount: { type: Number, required: true, min: 1 },
-    averageAgeRange: {
-      type: String,
-      required: true,
-      enum: ['18-20', '20-30', '30-40', '40-50', '50-60', '+60'],
+    averageAgeRange: { type: String, trim: true },
+    averageAgeRanges: {
+      type: [String],
+      default: [],
+      validate: {
+        validator(v: string[]) {
+          return (
+            Array.isArray(v) &&
+            v.length >= 1 &&
+            v.every((x) => (AGE_ENUM as readonly string[]).includes(x))
+          );
+        },
+        message: 'Tranches d\'age invalides',
+      },
     },
     preferredRegion: { type: String, required: true, trim: true },
     preferredCategory: {
@@ -40,7 +65,7 @@ const SOSConseilRequestSchema = new Schema<ISOSConseilRequest>(
       required: true,
       enum: ['cafe', 'restaurant', 'hotel', 'cinema', 'event_space'],
     },
-    budgetRange: { type: String, required: true, trim: true },
+    budgetRange: { type: String, required: false, trim: true },
     preferredDate: { type: Date },
     preferredTime: { type: String, trim: true },
     details: { type: String, trim: true },
@@ -52,6 +77,23 @@ const SOSConseilRequestSchema = new Schema<ISOSConseilRequest>(
   },
   { timestamps: true }
 );
+
+SOSConseilRequestSchema.pre('validate', function (next) {
+  const doc = this as ISOSConseilRequest;
+  const arr = doc.averageAgeRanges;
+  if ((!arr || arr.length === 0) && doc.averageAgeRange) {
+    doc.set('averageAgeRanges', [doc.averageAgeRange]);
+  }
+  next();
+});
+
+SOSConseilRequestSchema.post('init', function (doc: ISOSConseilRequest) {
+  const legacy = doc.get('averageAgeRange') as string | undefined;
+  const ranges = doc.get('averageAgeRanges') as string[] | undefined;
+  if ((!ranges || ranges.length === 0) && legacy) {
+    doc.set('averageAgeRanges', [legacy]);
+  }
+});
 
 export const SOSConseilRequest = mongoose.model<ISOSConseilRequest>(
   'SOSConseilRequest',
