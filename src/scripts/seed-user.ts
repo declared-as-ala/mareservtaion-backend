@@ -23,6 +23,19 @@ async function seedUser() {
     { upsert: true, new: true }
   );
 
+  await User.findOneAndUpdate(
+    { email: 'owner.cafe@matable.tn' },
+    {
+      fullName: 'Owner Cafe MaTable',
+      email: 'owner.cafe@matable.tn',
+      passwordHash: hash,
+      role: 'ESTABLISHMENT_OWNER',
+      isActive: true,
+      emailVerified: true,
+    },
+    { upsert: true, new: true }
+  );
+
   console.log(`✅ User upserted: ${user.email} (role: ${user.role}, id: ${user._id})`);
   process.exit(0);
 }

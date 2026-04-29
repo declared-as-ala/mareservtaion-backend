@@ -1,6 +1,17 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'EXPIRED' | 'NO_SHOW';
+export type ReservationStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'checked_in'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show'
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW';
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded';
 export type BookingType = 'TABLE' | 'ROOM' | 'SEAT';
 export type ReservableType = 'table' | 'room' | 'seat_zone' | 'seat';
@@ -46,6 +57,10 @@ export interface IReservation extends Document {
   confirmationCode: string;
   status: ReservationStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod?: 'cash' | 'card' | 'online' | 'wallet';
+  paymentProvider?: string;
+  amountPaid?: number;
+  remainingAmount?: number;
   qrCodeData?: string;
   qrCodeImageUrl?: string;
   checkInStatus: CheckInStatus;
@@ -104,8 +119,16 @@ const ReservationSchema = new Schema<IReservation>(
     },
     totalPrice: { type: Number, required: true, default: 0 },
     confirmationCode: { type: String, required: true, unique: true },
-    status: { type: String, enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'], default: 'CONFIRMED' },
+    status: {
+      type: String,
+      enum: ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show', 'PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
+      default: 'confirmed',
+    },
     paymentStatus: { type: String, enum: ['unpaid', 'pending', 'paid', 'failed', 'refunded'], default: 'unpaid' },
+    paymentMethod: { type: String, enum: ['cash', 'card', 'online', 'wallet'] },
+    paymentProvider: { type: String },
+    amountPaid: { type: Number, default: 0 },
+    remainingAmount: { type: Number, default: 0 },
     qrCodeData: { type: String },
     qrCodeImageUrl: { type: String },
     checkInStatus: { type: String, enum: ['not_checked_in', 'checked_in'], default: 'not_checked_in' },
@@ -133,7 +156,5 @@ ReservationSchema.index({ seatId: 1, startAt: 1 });
 ReservationSchema.index({ reservableUnitId: 1, startAt: 1, endAt: 1 });
 ReservationSchema.index({ userId: 1, createdAt: -1 });
 ReservationSchema.index({ venueId: 1, bookingType: 1, startAt: 1 });
-ReservationSchema.index({ reservationCode: 1 });
-ReservationSchema.index({ confirmationCode: 1 });
-
+ReservationSchema.index({ venueId: 1, status: 1, startAt: -1 });
 export const Reservation = mongoose.model<IReservation>('Reservation', ReservationSchema);

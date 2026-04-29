@@ -11,6 +11,7 @@
     "vercel-build": "npm run build:vercel",
     "start": "node dist/server.js",
     "seed": "tsx src/scripts/seed.ts",
+    "seed:menu": "tsx src/scripts/seed-menu.ts",
     "fix-klapty-urls": "tsx src/scripts/fix-klapty-urls.ts",
     "emails:run": "tsx src/jobs/sendReservationEmails.job.ts"
   },

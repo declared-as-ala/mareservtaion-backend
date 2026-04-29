@@ -22,6 +22,7 @@ import favoritesRouter from './routes/favorites';
 import scenesRouter from './routes/scenes';
 import menuItemsRouter from './routes/menuItems';
 import paymentsRouter from './routes/payments';
+import menuDuJourRouter from './routes/menu-du-jour';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { apiLimiter } from './middlewares/rateLimit.middleware';
 import { getEmailHealth } from './services/email.service';
@@ -48,6 +49,19 @@ app.use(cors({
   },
   credentials: true,
 }));
+// Request logger for debugging and operations visibility.
+app.use((req, res, next) => {
+  const start = Date.now();
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(forwarded)
+    ? forwarded[0]
+    : forwarded?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown';
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    console.log(`[api] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms) ip=${ip}`);
+  });
+  next();
+});
 app.use(express.json());
 app.use(cookieParser());
 app.use('/uploads', express.static(UPLOAD_DIR));
@@ -115,6 +129,7 @@ app.use('/api/v1/favorites', favoritesRouter);
 app.use('/api/v1/scenes', scenesRouter);
 app.use('/api/v1/menu', menuItemsRouter);
 app.use('/api/v1/payments', paymentsRouter);
+app.use('/api/v1/menu-du-jour', menuDuJourRouter);
 
 // Legacy /api/* (backward compatibility during migration)
 app.get('/health', (req, res) => {
@@ -134,6 +149,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/menu', menuItemsRouter);
+app.use('/api/menu-du-jour', menuDuJourRouter);
 
 // Explicit 404 — ensures clear JSON response for unknown routes
 app.use((req, res) => {

@@ -23,7 +23,7 @@ async function seedUser() {
         fullName,
         email,
         passwordHash,
-        role: 'CUSTOMER',
+        role: 'ESTABLISHMENT_OWNER',
         isActive: true,
         emailVerified: true
       });

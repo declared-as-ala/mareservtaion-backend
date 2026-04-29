@@ -30,6 +30,13 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+  // OpenRouter (SOS assistant — lazy-read in route; omit in dev if unused)
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_MODEL: z.string().optional(),
+  OPENROUTER_SITE_URL: z.string().optional(),
+  OPENROUTER_APP_TITLE: z.string().optional(),
+  /** Comma/semicolon list for SOS Conseil submit notifications (optional; route has defaults). */
+  SOS_CONSEIL_NOTIFICATION_EMAILS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -2,6 +2,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 const AGE_ENUM = ['18-20', '20-30', '30-40', '40-50', '50-60', '+60'] as const;
 
+const CONTACT_ENUM = ['whatsapp', 'phone', 'email'] as const;
+
 export interface ISOSConseilRequest extends Document {
   fullName: string;
   phone: string;
@@ -14,8 +16,16 @@ export interface ISOSConseilRequest extends Document {
   averageAgeRanges: string[];
   preferredRegion: string;
   preferredCategory: string;
-  /** Optional; removed from new forms, kept for legacy rows. */
+  /** Optional budget level or free text */
   budgetRange?: string;
+  /** Tags décrivant ambiance / critères souhaités */
+  ambianceTags?: string[];
+  /** Préférence contact */
+  contactPreference?: (typeof CONTACT_ENUM)[number];
+  /** Résumé court issu du flux assistant IA (session non persistée) */
+  aiAssistSummary?: string;
+  /** Recommandations manuelles saisies par l'admin */
+  adminRecommendedVenues?: string;
   preferredDate?: Date;
   preferredTime?: string;
   details?: string;
@@ -23,6 +33,16 @@ export interface ISOSConseilRequest extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const CATEGORY_ENUM = [
+  'cafe',
+  'restaurant',
+  'hotel',
+  'cinema',
+  'event_space',
+  'lounge',
+  'rooftop',
+] as const;
 
 const SOSConseilRequestSchema = new Schema<ISOSConseilRequest>(
   {
@@ -63,9 +83,17 @@ const SOSConseilRequestSchema = new Schema<ISOSConseilRequest>(
     preferredCategory: {
       type: String,
       required: true,
-      enum: ['cafe', 'restaurant', 'hotel', 'cinema', 'event_space'],
+      enum: [...CATEGORY_ENUM],
     },
     budgetRange: { type: String, required: false, trim: true },
+    ambianceTags: [{ type: String, trim: true }],
+    contactPreference: {
+      type: String,
+      required: false,
+      enum: [...CONTACT_ENUM],
+    },
+    aiAssistSummary: { type: String, trim: true, maxlength: 8000 },
+    adminRecommendedVenues: { type: String, trim: true, maxlength: 12000 },
     preferredDate: { type: Date },
     preferredTime: { type: String, trim: true },
     details: { type: String, trim: true },

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type UserRole = 'CUSTOMER' | 'ADMIN' | 'ORGANIZER' | 'VENUE_OWNER';
+export type UserRole = 'CUSTOMER' | 'ADMIN' | 'ORGANIZER' | 'VENUE_OWNER' | 'ESTABLISHMENT_OWNER';
 
 export interface IUserPreferences {
   theme?: 'light' | 'dark' | 'system';
@@ -35,7 +35,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true },
     phone: { type: String },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['CUSTOMER', 'ADMIN', 'ORGANIZER', 'VENUE_OWNER'], default: 'CUSTOMER' },
+    role: { type: String, enum: ['CUSTOMER', 'ADMIN', 'ORGANIZER', 'VENUE_OWNER', 'ESTABLISHMENT_OWNER'], default: 'CUSTOMER' },
     isActive: { type: Boolean, default: true },
     emailVerified: { type: Boolean, default: false },
     avatarUrl: { type: String },
@@ -51,7 +51,6 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1, isActive: 1 });
 
 export const User = mongoose.model<IUser>('User', UserSchema);

@@ -189,6 +189,60 @@ router.get('/charts/reservations-by-type', async (req, res) => {
   }
 });
 
+router.get('/analytics/category', async (_req, res) => {
+  try {
+    const reservations = await Reservation.find({})
+      .select('bookingType status totalPrice venueId startAt')
+      .populate('venueId', 'name type city')
+      .lean();
+
+    const bookingSplit = { TABLE: 0, ROOM: 0, SEAT: 0 };
+    const revenueSplit = { TABLE: 0, ROOM: 0, SEAT: 0 };
+    const statusSplit: Record<string, number> = {};
+    const topVenues: Record<string, number> = {};
+
+    reservations.forEach((r: any) => {
+      const t = String(r.bookingType || 'TABLE').toUpperCase();
+      if (t === 'ROOM') bookingSplit.ROOM += 1;
+      else if (t === 'SEAT') bookingSplit.SEAT += 1;
+      else bookingSplit.TABLE += 1;
+
+      const status = String(r.status || 'unknown');
+      statusSplit[status] = (statusSplit[status] || 0) + 1;
+
+      if (['confirmed', 'completed', 'checked_in', 'CONFIRMED', 'COMPLETED'].includes(status)) {
+        const amount = Number(r.totalPrice || 0);
+        if (t === 'ROOM') revenueSplit.ROOM += amount;
+        else if (t === 'SEAT') revenueSplit.SEAT += amount;
+        else revenueSplit.TABLE += amount;
+      }
+
+      const venueName = r.venueId?.name || 'Lieu';
+      topVenues[venueName] = (topVenues[venueName] || 0) + 1;
+    });
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayCount = reservations.filter((r: any) => String(new Date(r.startAt).toISOString().slice(0, 10)) === todayKey).length;
+
+    res.json({
+      success: true,
+      data: {
+        bookingSplit,
+        revenueSplit,
+        statusSplit,
+        todayCount,
+        topVenues: Object.entries(topVenues)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, count]) => ({ name, count })),
+      },
+    });
+  } catch (error) {
+    console.error('Error category analytics:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
 // GET /api/admin/charts/reservations-by-city?days=30
 router.get('/charts/reservations-by-city', async (req, res) => {
   try {
@@ -300,11 +354,15 @@ router.get('/venues', async (req, res) => {
     const skip = (page - 1) * limit;
     const type = req.query.type as string;
     const city = req.query.city as string;
+    const ownerId = req.query.ownerId as string;
+    const withoutOwner = req.query.withoutOwner === '1' || req.query.withoutOwner === 'true';
     const q = String(req.query.q || '').trim();
 
     const filter: Record<string, unknown> = {};
     if (type) filter.type = type;
     if (city) filter.city = city;
+    if (ownerId && mongoose.Types.ObjectId.isValid(ownerId)) filter.ownerId = ownerId;
+    if (withoutOwner) filter.ownerId = { $exists: false };
     if (q) {
       filter.$or = [
         { name: new RegExp(q, 'i') },
@@ -314,7 +372,7 @@ router.get('/venues', async (req, res) => {
     }
 
     const [venues, total] = await Promise.all([
-      Venue.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Venue.find(filter).populate('ownerId', 'fullName email role').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Venue.countDocuments(filter),
     ]);
 
@@ -335,6 +393,44 @@ router.get('/venues', async (req, res) => {
   } catch (error) {
     console.error('Error fetching venues:', error);
     res.status(500).json({ error: 'Erreur lors du chargement des lieux.' });
+  }
+});
+
+router.get('/owners', async (_req, res) => {
+  try {
+    const owners = await User.find({ role: { $in: ['ESTABLISHMENT_OWNER', 'VENUE_OWNER'] } })
+      .select('fullName email role')
+      .sort({ fullName: 1 })
+      .lean();
+    res.json({ success: true, data: owners });
+  } catch (error) {
+    console.error('Error listing owners:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+router.patch('/venues/:id/owner', async (req, res) => {
+  try {
+    const { ownerId } = req.body as { ownerId?: string | null };
+    const venue = await Venue.findById(req.params.id);
+    if (!venue) return res.status(404).json({ error: 'Lieu introuvable.' });
+    if (ownerId === null || ownerId === '') {
+      (venue as any).ownerId = undefined;
+    } else {
+      if (!ownerId || !mongoose.Types.ObjectId.isValid(ownerId)) return res.status(400).json({ error: 'ownerId invalide.' });
+      const owner = await User.findById(ownerId).select('role');
+      if (!owner) return res.status(404).json({ error: 'Proprietaire introuvable.' });
+      if (!['ESTABLISHMENT_OWNER', 'VENUE_OWNER'].includes(owner.role)) {
+        return res.status(400).json({ error: 'Utilisateur non proprietaire.' });
+      }
+      (venue as any).ownerId = ownerId as any;
+    }
+    await venue.save();
+    const updated = await Venue.findById(venue._id).populate('ownerId', 'fullName email role').lean();
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('Error assigning owner:', error);
+    res.status(500).json({ error: 'Erreur.' });
   }
 });
 

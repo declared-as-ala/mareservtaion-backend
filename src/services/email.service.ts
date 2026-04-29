@@ -284,6 +284,9 @@ export function createSOSConseilAdminTemplate(data: {
   preferredRegion: string;
   preferredCategory: string;
   budgetRange?: string;
+  ambianceTags?: string[];
+  contactPreference?: 'whatsapp' | 'phone' | 'email';
+  aiAssistSummary?: string;
   preferredDate?: string;
   preferredTime?: string;
   details?: string;
@@ -315,9 +318,18 @@ export function createSOSConseilAdminTemplate(data: {
       hotel: 'Hôtel',
       cinema: 'Cinéma',
       event_space: 'Espace événementiel',
+      lounge: 'Lounge',
+      rooftop: 'Rooftop',
     };
     return map[value] || value;
   };
+
+  const formatContact = (cp?: string) =>
+    ({
+      whatsapp: 'WhatsApp',
+      phone: 'Téléphone',
+      email: 'Email',
+    } as Record<string, string>)[cp || ''] || cp;
 
   const row = (label: string, value: string | undefined, accent = false) =>
     value ? `<tr><td style="padding:8px 0;border-bottom:1px solid #262626;color:#a3a3a3;font-size:13px;white-space:nowrap;padding-right:16px;width:1%">${label}</td><td style="padding:8px 0;border-bottom:1px solid #262626;color:${accent ? '#fbbf24' : '#ffffff'};font-size:13px;font-weight:600">${value}</td></tr>` : '';
@@ -348,6 +360,9 @@ export function createSOSConseilAdminTemplate(data: {
           ${row('📅 Tranches d\'âge', data.averageAgeRanges.map((r) => `${r} ans`).join(', '))}
           ${row('📍 Région', data.preferredRegion)}
           ${row('🏛️ Catégorie', formatCategory(data.preferredCategory))}
+          ${data.ambianceTags?.length ? row('✨ Ambiance', data.ambianceTags.join(', '), true) : ''}
+          ${data.contactPreference ? row('📱 Contact préféré', formatContact(data.contactPreference)) : ''}
+          ${data.aiAssistSummary ? row('🤖 Synthèse assistant', data.aiAssistSummary) : ''}
           ${data.budgetRange ? row('💰 Budget', formatBudget(data.budgetRange), true) : ''}
           ${data.preferredDate ? row('📆 Date souhaitée', data.preferredDate) : ''}
           ${data.preferredTime ? row('⏰ Heure souhaitée', data.preferredTime) : ''}
@@ -382,6 +397,9 @@ Participants : ${data.participantsCount}
 Tranches d'âge : ${data.averageAgeRanges.map((r) => `${r} ans`).join(', ')}
 Région : ${data.preferredRegion}
 Catégorie : ${formatCategory(data.preferredCategory)}
+${data.ambianceTags?.length ? `Ambiance : ${data.ambianceTags.join(', ')}` : ''}
+${data.contactPreference ? `Contact préféré : ${formatContact(data.contactPreference)}` : ''}
+${data.aiAssistSummary ? `Synthèse assistant :\n${data.aiAssistSummary}` : ''}
 ${data.budgetRange ? `Budget : ${formatBudget(data.budgetRange)}` : ''}
 ${data.preferredDate ? `Date souhaitée : ${data.preferredDate}` : ''}
 ${data.preferredTime ? `Heure souhaitée : ${data.preferredTime}` : ''}

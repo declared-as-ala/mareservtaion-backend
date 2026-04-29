@@ -683,6 +683,9 @@ router.get('/:id/ticket', authenticate, async (req: AuthRequest, res) => {
 // GET /api/v1/reservations/scan?code= â€” admin: look up reservation by confirmation code for QR entry
 router.get('/scan', authenticate, async (req: AuthRequest, res) => {
   try {
+    if (req.userRole === 'ADMIN') {
+      return sendError(res, { message: 'Scanner admin desactive. Utilisez le scanner proprietaire.', statusCode: 403 });
+    }
     const code = (req.query.code as string)?.trim();
     if (!code) return sendError(res, { message: 'code requis.', statusCode: 400 });
 
@@ -723,6 +726,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
 // PATCH /api/v1/reservations/:id/checkin â€” admin: validate entry via QR scan
 router.patch('/:id/checkin', authenticate, async (req: AuthRequest, res) => {
   try {
+    if (req.userRole === 'ADMIN') {
+      return sendError(res, { message: 'Check-in admin desactive. Utilisez le flux proprietaire.', statusCode: 403 });
+    }
     const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return sendError(res, { message: 'RÃ©servation introuvable.', statusCode: 404 });
     reservation.checkInStatus = 'checked_in';

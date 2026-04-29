@@ -19,7 +19,6 @@ const TagSchema = new Schema<ITag>(
   { timestamps: true }
 );
 
-TagSchema.index({ slug: 1 });
 TagSchema.index({ isActive: 1 });
 
 export const Tag = mongoose.model<ITag>('Tag', TagSchema);

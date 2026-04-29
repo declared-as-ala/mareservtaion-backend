@@ -13,6 +13,18 @@ const keyGenerator = (req: Request) => {
   return ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '');
 };
 
+const isDev = process.env.NODE_ENV !== 'production';
+
+function logRateLimitHit(req: Request) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(forwarded)
+    ? forwarded[0]
+    : forwarded?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown';
+  console.warn(
+    `[rate-limit] blocked ${req.method} ${req.originalUrl} ip=${ip}`
+  );
+}
+
 export const apiLimiter = rateLimit({
   windowMs,
   max: 200,
@@ -20,6 +32,12 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator,
+  // In development, disable global API throttling to avoid blocking on page refresh/HMR.
+  skip: () => isDev,
+  handler: (req, res, _next, options) => {
+    logRateLimitHit(req);
+    res.status(options.statusCode).json(options.message);
+  },
 });
 
 /**
@@ -43,4 +61,29 @@ export const reservationLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator,
+  skip: () => isDev,
+  handler: (req, res, _next, options) => {
+    logRateLimitHit(req);
+    res.status(options.statusCode).json(options.message);
+  },
+});
+
+/** Stricter limits for SOS Conseil assistant (OpenRouter). */
+export const sosConseilChatLimiter = rateLimit({
+  windowMs,
+  max: Number(process.env.SOS_CHAT_RATE_MAX || 24),
+  message: {
+    success: false,
+    error:
+      'Trop de messages avec l\'assistant. Patientez quelques minutes ou réessayez plus tard.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator,
+  // Keep assistant limiter active even in dev by default unless explicitly disabled.
+  skip: () => process.env.SOS_CHAT_DISABLE_RATE_LIMIT === 'true',
+  handler: (req, res, _next, options) => {
+    logRateLimitHit(req);
+    res.status(options.statusCode).json(options.message);
+  },
 });

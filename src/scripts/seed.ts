@@ -80,18 +80,40 @@ async function seed() {
     email: 'admin@mareservation.tn',
     passwordHash: hash,
     role: 'ADMIN',
+    emailVerified: true,
   });
 
-  const customers = await User.insertMany([
-    { fullName: 'Rania Ben Salem', email: 'client1@example.com', passwordHash: hash, role: 'CUSTOMER' },
-    { fullName: 'Karim Trabelsi', email: 'client2@example.com', passwordHash: hash, role: 'CUSTOMER' },
-    { fullName: 'Amira Jlassi', email: 'client3@example.com', passwordHash: hash, role: 'CUSTOMER' },
-    { fullName: 'Youssef Ben Ammar', email: 'client4@example.com', passwordHash: hash, role: 'CUSTOMER' },
-    { fullName: 'Sarra Gharbi', email: 'client5@example.com', passwordHash: hash, role: 'CUSTOMER' },
-    { fullName: 'Ala', email: 'ala@alai.com', passwordHash: hash, role: 'CUSTOMER' },
-  ]);
+  const normalUser = await User.create({
+    fullName: 'Client Ma Reservation',
+    email: 'user@mareservation.tn',
+    passwordHash: hash,
+    role: 'CUSTOMER',
+    emailVerified: true,
+  });
 
-  console.log('👤 Created 1 admin, 6 customers');
+  console.log('👤 Created 2 users: 1 admin + 1 customer');
+
+  const ownerCafe = await User.create({
+    fullName: 'Owner Cafe MaTable',
+    email: 'cafe@matable.tn',
+    passwordHash: hash,
+    role: 'ESTABLISHMENT_OWNER',
+    emailVerified: true,
+  });
+  const ownerRestaurant = await User.create({
+    fullName: 'Owner Restaurant MaTable',
+    email: 'owner.restaurant@matable.tn',
+    passwordHash: hash,
+    role: 'ESTABLISHMENT_OWNER',
+    emailVerified: true,
+  });
+  const ownerHotel = await User.create({
+    fullName: 'Owner Hotel MaTable',
+    email: 'owner.hotel@matable.tn',
+    passwordHash: hash,
+    role: 'ESTABLISHMENT_OWNER',
+    emailVerified: true,
+  });
 
   const categories = await Category.insertMany([
     { name: 'Cafés', slug: 'cafes', type: 'primary', displayOrder: 1 },
@@ -106,19 +128,6 @@ async function seed() {
   const catCinema = categories[3]._id;
   const catEvenements = categories[4]._id;
   console.log('📁 Created 5 categories');
-
-  const heroImages = [
-    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80',
-    'https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=800&q=80',
-    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
-    'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80',
-    'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80',
-    'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=800&q=80',
-    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&q=80',
-    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80',
-    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
-    'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80',
-  ];
 
   // Café 1
   const cafe1 = await Venue.create({
@@ -138,7 +147,6 @@ async function seed() {
     isFeatured: true,
   });
   await VenueMedia.insertMany([
-    { venueId: cafe1._id, kind: 'HERO_IMAGE', url: heroImages[0] },
     { venueId: cafe1._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.cafe1 },
   ]);
   const cafe1Tables = await Table.insertMany([
@@ -175,7 +183,6 @@ async function seed() {
     isFeatured: false,
   });
   await VenueMedia.insertMany([
-    { venueId: cafe2._id, kind: 'HERO_IMAGE', url: heroImages[1] },
     { venueId: cafe2._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.cafe2 },
   ]);
   const cafe2Tables = await Table.insertMany([
@@ -212,7 +219,6 @@ async function seed() {
     isFeatured: true,
   });
   await VenueMedia.insertMany([
-    { venueId: restaurant._id, kind: 'HERO_IMAGE', url: heroImages[2] },
     { venueId: restaurant._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.restaurant },
   ]);
   const restaurantTables = await Table.insertMany([
@@ -250,7 +256,6 @@ async function seed() {
     isFeatured: false,
   });
   await VenueMedia.insertMany([
-    { venueId: restaurant2._id, kind: 'HERO_IMAGE', url: heroImages[6] },
     { venueId: restaurant2._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.restaurant2 },
   ]);
   const restaurant2Tables = await Table.insertMany([
@@ -276,7 +281,6 @@ async function seed() {
     isFeatured: true,
   });
   await VenueMedia.insertMany([
-    { venueId: hotel._id, kind: 'HERO_IMAGE', url: heroImages[3] },
     { venueId: hotel._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.hotel },
   ]);
   const hotelRooms = await Room.insertMany([
@@ -309,7 +313,6 @@ async function seed() {
     isFeatured: false,
   });
   await VenueMedia.insertMany([
-    { venueId: hotel2._id, kind: 'HERO_IMAGE', url: heroImages[7] },
     { venueId: hotel2._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.hotel2 },
   ]);
   await Room.insertMany([
@@ -335,7 +338,6 @@ async function seed() {
     isFeatured: true,
   });
   await VenueMedia.insertMany([
-    { venueId: cinema._id, kind: 'HERO_IMAGE', url: heroImages[4] },
     { venueId: cinema._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.cinema },
   ]);
   const cinemaSeats = await Seat.insertMany([
@@ -367,7 +369,6 @@ async function seed() {
     isFeatured: false,
   });
   await VenueMedia.insertMany([
-    { venueId: cinema2._id, kind: 'HERO_IMAGE', url: heroImages[8] },
     { venueId: cinema2._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.cinema2 },
   ]);
   await Seat.insertMany([
@@ -394,7 +395,6 @@ async function seed() {
     isFeatured: true,
   });
   await VenueMedia.insertMany([
-    { venueId: eventSpace1._id, kind: 'HERO_IMAGE', url: heroImages[5] },
     { venueId: eventSpace1._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.eventSpace1 },
   ]);
   const eventSpace1Tables = await Table.insertMany([
@@ -419,8 +419,11 @@ async function seed() {
     isPublished: true,
     isFeatured: false,
   });
+
+  await Venue.updateMany({ type: 'CAFE' }, { $set: { ownerId: ownerCafe._id } });
+  await Venue.updateMany({ type: 'RESTAURANT' }, { $set: { ownerId: ownerRestaurant._id } });
+  await Venue.updateMany({ type: 'HOTEL' }, { $set: { ownerId: ownerHotel._id } });
   await VenueMedia.insertMany([
-    { venueId: eventSpace2._id, kind: 'HERO_IMAGE', url: heroImages[9] },
     { venueId: eventSpace2._id, kind: 'TOUR_360_EMBED_URL', url: KLAPTY_TUNNEL.eventSpace2 },
   ]);
   await Table.insertMany([
@@ -462,8 +465,7 @@ async function seed() {
   lastWeek.setDate(lastWeek.getDate() - 3);
   lastWeek.setHours(21, 0, 0, 0);
 
-  const customerId = customers[0]._id;
-  const customer2Id = customers[1]._id;
+  const customerId = normalUser._id;
 
   const codes = new Set<string>();
   function uniqueCode() {
@@ -479,18 +481,15 @@ async function seed() {
     { userId: customerId, venueId: hotel._id, bookingType: 'ROOM', roomId: hotelRooms[0]._id, startAt: new Date(tomorrow.getTime() + 7 * 24 * 60 * 60 * 1000), endAt: new Date(tomorrow.getTime() + 9 * 24 * 60 * 60 * 1000), status: 'CONFIRMED', paymentStatus: 'paid', confirmationCode: uniqueCode(), totalPrice: 240, guestFirstName: 'Rania', guestLastName: 'Ben Salem', guestPhone: '12345678', partySize: 2 },
     { userId: customerId, venueId: cinema._id, bookingType: 'SEAT', seatId: cinemaSeats[0]._id, startAt: nextWeek, endAt: new Date(nextWeek.getTime() + 3 * 60 * 60 * 1000), status: 'CONFIRMED', paymentStatus: 'paid', confirmationCode: uniqueCode(), totalPrice: 25, guestFirstName: 'Rania', guestLastName: 'Ben Salem', guestPhone: '12345678', partySize: 1 },
     { userId: customerId, venueId: cafe2._id, bookingType: 'TABLE', tableId: cafe2Tables[1]._id, startAt: lastWeek, endAt: new Date(lastWeek.getTime() + twoHours), status: 'CONFIRMED', paymentStatus: 'paid', confirmationCode: uniqueCode(), totalPrice: 12, guestFirstName: 'Rania', guestLastName: 'Ben Salem', guestPhone: '12345678', partySize: 2 },
-    { userId: customer2Id, venueId: cafe1._id, bookingType: 'TABLE', tableId: cafe1Tables[1]._id, startAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000), endAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000 + 20 * 60 * 60 * 1000), status: 'PENDING', paymentStatus: 'unpaid', confirmationCode: uniqueCode(), totalPrice: 15, guestFirstName: 'Karim', guestLastName: 'Trabelsi', guestPhone: '87654321', partySize: 3 },
-    { userId: customer2Id, venueId: restaurant2._id, bookingType: 'TABLE', tableId: restaurant2Tables[0]._id, startAt: lastWeek, endAt: new Date(lastWeek.getTime() + twoHours), status: 'CANCELLED', paymentStatus: 'refunded', confirmationCode: uniqueCode(), totalPrice: 55, guestFirstName: 'Karim', guestLastName: 'Trabelsi', guestPhone: '87654321', partySize: 2 },
+    { userId: customerId, venueId: cafe1._id, bookingType: 'TABLE', tableId: cafe1Tables[1]._id, startAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000), endAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000 + 20 * 60 * 60 * 1000), status: 'PENDING', paymentStatus: 'unpaid', confirmationCode: uniqueCode(), totalPrice: 15, guestFirstName: 'Client', guestLastName: 'Ma Reservation', guestPhone: '87654321', partySize: 3 },
+    { userId: customerId, venueId: restaurant2._id, bookingType: 'TABLE', tableId: restaurant2Tables[0]._id, startAt: lastWeek, endAt: new Date(lastWeek.getTime() + twoHours), status: 'CANCELLED', paymentStatus: 'refunded', confirmationCode: uniqueCode(), totalPrice: 55, guestFirstName: 'Client', guestLastName: 'Ma Reservation', guestPhone: '87654321', partySize: 2 },
   ]);
   console.log('📋 Created 7 reservations (CONFIRMED, PENDING, CANCELLED) with confirmation codes');
 
   console.log('\n✅ Seed completed.');
   console.log('\n📝 Credentials (password: ' + PASSWORD + ')');
   console.log('  Admin:   admin@mareservation.tn');
-  console.log('  Customer (with reservations): client1@example.com');
-  console.log('  Customer (new): ala@alai.com');
-  console.log('  Customer (pending + cancelled): client2@example.com');
-  console.log('  Customers: client3@example.com, client4@example.com, client5@example.com');
+  console.log('  Customer: user@mareservation.tn');
 
   await mongoose.connection.close();
   process.exit(0);

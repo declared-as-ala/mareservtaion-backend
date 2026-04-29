@@ -36,7 +36,4 @@ const AppSettingsSchema = new Schema<IAppSettings>(
   { timestamps: true }
 );
 
-// Singleton: one document
-AppSettingsSchema.index({ _id: 1 }, { unique: true });
-
 export const AppSettings = mongoose.model<IAppSettings>('AppSettings', AppSettingsSchema);

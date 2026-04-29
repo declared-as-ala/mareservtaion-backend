@@ -36,3 +36,15 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
   }
   next();
 };
+
+export const requireRoles =
+  (...roles: string[]) =>
+  (req: AuthRequest, res: Response, next: NextFunction): void => {
+    if (!req.userRole || !roles.includes(req.userRole)) {
+      res.status(403).json({ success: false, error: 'Forbidden', message: 'Permissions insuffisantes.' });
+      return;
+    }
+    next();
+  };
+
+export const requireEstablishmentOwner = requireRoles('ESTABLISHMENT_OWNER', 'ADMIN');

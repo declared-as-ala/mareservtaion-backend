@@ -34,7 +34,6 @@ const CategorySchema = new Schema<ICategory>(
   { timestamps: true }
 );
 
-CategorySchema.index({ slug: 1 });
 CategorySchema.index({ displayOrder: 1, sortOrder: 1 });
 CategorySchema.index({ isActive: 1, venueType: 1 });
 

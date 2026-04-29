@@ -52,6 +52,7 @@ export interface IVenue extends Document {
   checkOutPolicy?: string;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
+  ownerId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,6 +98,7 @@ const VenueSchema = new Schema<IVenue>(
     checkOutPolicy: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
 );
@@ -105,5 +107,6 @@ VenueSchema.index({ city: 1, type: 1 });
 VenueSchema.index({ name: 'text', description: 'text', city: 'text' });
 VenueSchema.index({ isPublished: 1, isFeatured: -1 });
 VenueSchema.index({ hasVirtualTour: 1, isPublished: 1 });
+VenueSchema.index({ ownerId: 1, type: 1, isPublished: 1 });
 
 export const Venue = mongoose.model<IVenue>('Venue', VenueSchema);

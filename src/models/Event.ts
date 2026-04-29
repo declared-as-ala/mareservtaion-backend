@@ -64,7 +64,6 @@ const EventSchema = new Schema<IEvent>(
 
 EventSchema.index({ venueId: 1 });
 EventSchema.index({ startAt: 1 });
-EventSchema.index({ slug: 1 }, { unique: true });
 EventSchema.index({ isPublished: 1, isFeatured: -1 });
 
 export const Event = mongoose.model<IEvent>('Event', EventSchema);
