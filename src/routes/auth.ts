@@ -34,18 +34,19 @@ function setAuthCookies(res: Response, accessToken: string, refreshToken: string
   const accessMaxAge = 15 * 60 * 1000; // 15 min
   const refreshMaxAge = REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
   const isProd = process.env.NODE_ENV === 'production';
+  const sameSitePolicy: 'lax' | 'none' = isProd ? 'none' : 'lax';
 
   res.cookie(ACCESS_COOKIE_NAME, accessToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: sameSitePolicy,
     maxAge: accessMaxAge,
     path: '/',
   });
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: sameSitePolicy,
     maxAge: refreshMaxAge,
     path: '/',
   });

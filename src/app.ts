@@ -40,11 +40,17 @@ const ALLOWED_ORIGINS = [
   'https://mareservtaion-frontend.vercel.app',
   CORS_ORIGIN,
 ].filter(Boolean);
+const VERCEL_PREVIEW_ORIGIN_REGEX = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, origin || ALLOWED_ORIGINS[0]);
+    const isAllowed = Boolean(
+      !origin ||
+      ALLOWED_ORIGINS.includes(origin) ||
+      VERCEL_PREVIEW_ORIGIN_REGEX.test(origin)
+    );
+    if (isAllowed) cb(null, origin || ALLOWED_ORIGINS[0]);
     else cb(null, false);
   },
   credentials: true,
