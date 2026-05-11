@@ -90,6 +90,47 @@ router.get('/:id/hotspots', async (req, res) => {
   }
 });
 
+// GET /api/v1/venues/:id/rooms — list hotel rooms for a venue (supports ?startAt&endAt&guests&roomType)
+router.get('/:id/rooms', async (req, res) => {
+  try {
+    const idOrSlug = req.params.id;
+    const venue = await (mongoose.Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24
+      ? Venue.findById(idOrSlug)
+      : Venue.findOne({ slug: idOrSlug })
+    ).select('_id type').lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu non trouvé' });
+
+    const filter: Record<string, unknown> = { venueId: (venue as any)._id, isActive: true };
+    if (req.query.roomType) filter.roomType = req.query.roomType;
+
+    let rooms = await Room.find(filter).sort({ pricePerNight: 1 }).lean();
+
+    if (req.query.startAt && req.query.endAt) {
+      const startAt = new Date(req.query.startAt as string);
+      const endAt = new Date(req.query.endAt as string);
+      if (!isNaN(startAt.getTime()) && !isNaN(endAt.getTime())) {
+        const conflictingRoomIds = await Reservation.distinct('roomId', {
+          venueId: (venue as any)._id,
+          roomId: { $exists: true, $ne: null },
+          status: { $in: ['PENDING', 'CONFIRMED'] },
+          startAt: { $lt: endAt },
+          endAt: { $gt: startAt },
+        });
+        const reservedSet = new Set(conflictingRoomIds.map(String));
+        rooms = rooms.map((r) => ({
+          ...r,
+          status: reservedSet.has(String((r as any)._id)) ? 'reserved' : (r as any).status ?? 'available',
+        }));
+      }
+    }
+
+    res.json(rooms);
+  } catch (error) {
+    console.error('Error fetching rooms:', error);
+    res.status(500).json({ error: 'Échec du chargement des chambres.' });
+  }
+});
+
 // GET /api/v1/venues/:id/reservable-units — list reservable units (tables, rooms, seat zones) for a venue
 router.get('/:id/reservable-units', async (req, res) => {
   try {
