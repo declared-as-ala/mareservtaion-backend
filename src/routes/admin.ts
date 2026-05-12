@@ -1559,4 +1559,37 @@ router.post('/scene-hotspots', async (req, res) => {
   }
 });
 
+// GET /api/v1/admin/venues/:id/scenes  (generic — works for all venue types)
+router.get('/venues/:id/scenes', async (req, res) => {
+  try {
+    const scenes = await Scene.find({ venueId: req.params.id, isActive: true }).sort({ order: 1 }).lean();
+    const sceneIds = (scenes as any[]).map((s) => s._id);
+    const hotspots = sceneIds.length
+      ? await TourHotspot.find({ venueId: req.params.id, virtualTourId: { $in: sceneIds } }).lean()
+      : [];
+    res.json({ success: true, scenes, hotspots });
+  } catch (error) {
+    console.error('Error fetching venue scenes:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// POST /api/v1/admin/venues/:id/scenes  (generic — works for all venue types)
+router.post('/venues/:id/scenes', async (req, res) => {
+  try {
+    const venue = await Venue.findById(req.params.id).select('_id').lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu introuvable.' });
+    const { name, image, description } = req.body;
+    if (!name || !image) return res.status(400).json({ error: 'name et image requis.' });
+    const lastScene = await Scene.findOne({ venueId: req.params.id }).sort({ order: -1 }).select('order').lean();
+    const order = ((lastScene as any)?.order ?? -1) + 1;
+    const scene = await Scene.create({ venueId: req.params.id, name, image, description, order });
+    await Venue.findByIdAndUpdate(req.params.id, { hasVirtualTour: true });
+    res.status(201).json({ success: true, data: scene });
+  } catch (error) {
+    console.error('Error creating venue scene:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
 export default router;
