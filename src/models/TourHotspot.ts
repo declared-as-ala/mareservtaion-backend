@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type HotspotTargetType = 'reservable_unit' | 'table' | 'room' | 'seat_zone' | 'info' | 'event';
+export type HotspotTargetType = 'reservable_unit' | 'table' | 'room' | 'seat_zone' | 'info' | 'event' | 'scene';
 
 export interface IAnchorPosition {
   x: number;
@@ -39,7 +39,7 @@ const TourHotspotSchema = new Schema<ITourHotspot>(
     venueId: { type: Schema.Types.ObjectId, ref: 'Venue', required: true },
     virtualTourId: { type: Schema.Types.ObjectId, ref: 'VirtualTour', required: true },
     eventSessionId: { type: Schema.Types.ObjectId, ref: 'EventSession' },
-    targetType: { type: String, enum: ['reservable_unit', 'table', 'room', 'seat_zone', 'info', 'event'], required: true },
+    targetType: { type: String, enum: ['reservable_unit', 'table', 'room', 'seat_zone', 'info', 'event', 'scene'], required: true },
     targetId: { type: Schema.Types.ObjectId, required: true },
     label: { type: String, required: true },
     iconType: { type: String },
