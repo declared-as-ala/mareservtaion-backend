@@ -1338,4 +1338,225 @@ router.patch('/settings', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// HOTEL ADMIN ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+import { Scene } from '../models/Scene';
+
+// GET /api/v1/admin/hotels?q=&city=&page=&limit=
+router.get('/hotels', async (req, res) => {
+  try {
+    const { q, city, page = '1', limit = '20' } = req.query as Record<string, string>;
+    const filter: Record<string, unknown> = { type: 'HOTEL' };
+    if (q) filter.$or = [{ name: { $regex: q, $options: 'i' } }, { city: { $regex: q, $options: 'i' } }];
+    if (city) filter.city = city;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [hotels, total] = await Promise.all([
+      Venue.find(filter).sort({ isFeatured: -1, createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+      Venue.countDocuments(filter),
+    ]);
+    const hotelIds = (hotels as any[]).map((h) => h._id);
+    const [roomCounts, bookingCounts] = await Promise.all([
+      Room.aggregate([{ $match: { venueId: { $in: hotelIds } } }, { $group: { _id: '$venueId', count: { $sum: 1 } } }]),
+      Reservation.aggregate([{ $match: { venueId: { $in: hotelIds }, bookingType: 'ROOM' } }, { $group: { _id: '$venueId', count: { $sum: 1 } } }]),
+    ]);
+    const roomMap = Object.fromEntries(roomCounts.map((r: any) => [r._id.toString(), r.count]));
+    const bookingMap = Object.fromEntries(bookingCounts.map((b: any) => [b._id.toString(), b.count]));
+    const enriched = (hotels as any[]).map((h) => ({
+      ...h,
+      roomCount: roomMap[h._id.toString()] ?? 0,
+      bookingCount: bookingMap[h._id.toString()] ?? 0,
+    }));
+    res.json({ success: true, hotels: enriched, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (error) {
+    console.error('Error fetching hotels:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// GET /api/v1/admin/hotels/:id — hotel detail + room count + booking count
+router.get('/hotels/:id', async (req, res) => {
+  try {
+    const hotel = await Venue.findOne({ _id: req.params.id, type: 'HOTEL' }).lean();
+    if (!hotel) return res.status(404).json({ error: 'Hôtel introuvable.' });
+    const [roomCount, bookingCount] = await Promise.all([
+      Room.countDocuments({ venueId: req.params.id }),
+      Reservation.countDocuments({ venueId: req.params.id, bookingType: 'ROOM' }),
+    ]);
+    res.json({ success: true, data: { ...(hotel as any), roomCount, bookingCount } });
+  } catch (error) {
+    console.error('Error fetching hotel:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// GET /api/v1/admin/hotels/:id/rooms
+router.get('/hotels/:id/rooms', async (req, res) => {
+  try {
+    const hotel = await Venue.findOne({ _id: req.params.id, type: 'HOTEL' }).select('_id').lean();
+    if (!hotel) return res.status(404).json({ error: 'Hôtel introuvable.' });
+    const rooms = await Room.find({ venueId: req.params.id }).sort({ pricePerNight: 1 }).lean();
+    res.json({ success: true, rooms });
+  } catch (error) {
+    console.error('Error fetching hotel rooms:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// POST /api/v1/admin/hotels/:id/rooms
+router.post('/hotels/:id/rooms', async (req, res) => {
+  try {
+    const hotel = await Venue.findOne({ _id: req.params.id, type: 'HOTEL' }).select('_id startingPrice').lean();
+    if (!hotel) return res.status(404).json({ error: 'Hôtel introuvable.' });
+    const { roomNumber, roomType, capacity, pricePerNight } = req.body;
+    if (!roomNumber || !roomType || !capacity || !pricePerNight) {
+      return res.status(400).json({ error: 'roomNumber, roomType, capacity, pricePerNight requis.' });
+    }
+    const room = await Room.create({ venueId: req.params.id, ...req.body });
+    const minPrice = (hotel as any).startingPrice ?? 0;
+    if (Number(pricePerNight) < minPrice || minPrice === 0) {
+      await Venue.findByIdAndUpdate(req.params.id, { startingPrice: Number(pricePerNight) });
+    }
+    res.status(201).json({ success: true, data: room });
+  } catch (error: any) {
+    console.error('Error creating room:', error);
+    if (error.code === 11000) return res.status(409).json({ error: 'Numéro de chambre déjà utilisé.' });
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// PATCH /api/v1/admin/rooms/:id
+router.patch('/rooms/:id', async (req, res) => {
+  try {
+    const room = await Room.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    if (!room) return res.status(404).json({ error: 'Chambre introuvable.' });
+    res.json({ success: true, data: room });
+  } catch (error: any) {
+    console.error('Error updating room:', error);
+    if (error.code === 11000) return res.status(409).json({ error: 'Numéro de chambre déjà utilisé.' });
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// DELETE /api/v1/admin/rooms/:id
+router.delete('/rooms/:id', async (req, res) => {
+  try {
+    const result = await Room.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: 'Chambre introuvable.' });
+    res.json({ success: true, message: 'Chambre supprimée.' });
+  } catch (error) {
+    console.error('Error deleting room:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// GET /api/v1/admin/hotels/:id/bookings?status=&page=
+router.get('/hotels/:id/bookings', async (req, res) => {
+  try {
+    const { page = '1', status } = req.query as Record<string, string>;
+    const filter: Record<string, unknown> = { venueId: req.params.id, bookingType: 'ROOM' };
+    if (status) filter.status = status;
+    const skip = (parseInt(page) - 1) * 20;
+    const [bookings, total] = await Promise.all([
+      Reservation.find(filter).sort({ startAt: -1 }).skip(skip).limit(20)
+        .populate('roomId', 'name roomType roomNumber pricePerNight')
+        .lean(),
+      Reservation.countDocuments(filter),
+    ]);
+    res.json({ success: true, bookings, total, page: parseInt(page) });
+  } catch (error) {
+    console.error('Error fetching hotel bookings:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// GET /api/v1/admin/hotels/:id/scenes
+router.get('/hotels/:id/scenes', async (req, res) => {
+  try {
+    const scenes = await Scene.find({ venueId: req.params.id, isActive: true }).sort({ order: 1 }).lean();
+    const sceneIds = (scenes as any[]).map((s) => s._id);
+    const hotspots = sceneIds.length
+      ? await TourHotspot.find({ venueId: req.params.id, virtualTourId: { $in: sceneIds } }).lean()
+      : [];
+    res.json({ success: true, scenes, hotspots });
+  } catch (error) {
+    console.error('Error fetching hotel scenes:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// POST /api/v1/admin/hotels/:id/scenes
+router.post('/hotels/:id/scenes', async (req, res) => {
+  try {
+    const hotel = await Venue.findOne({ _id: req.params.id, type: 'HOTEL' }).select('_id').lean();
+    if (!hotel) return res.status(404).json({ error: 'Hôtel introuvable.' });
+    const { name, image, description } = req.body;
+    if (!name || !image) return res.status(400).json({ error: 'name et image requis.' });
+    const lastScene = await Scene.findOne({ venueId: req.params.id }).sort({ order: -1 }).select('order').lean();
+    const order = ((lastScene as any)?.order ?? -1) + 1;
+    const scene = await Scene.create({ venueId: req.params.id, name, image, description, order });
+    await Venue.findByIdAndUpdate(req.params.id, { hasVirtualTour: true });
+    res.status(201).json({ success: true, data: scene });
+  } catch (error) {
+    console.error('Error creating scene:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// PATCH /api/v1/admin/scenes/:id
+router.patch('/scenes/:id', async (req, res) => {
+  try {
+    const scene = await Scene.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    if (!scene) return res.status(404).json({ error: 'Scène introuvable.' });
+    res.json({ success: true, data: scene });
+  } catch (error) {
+    console.error('Error updating scene:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// DELETE /api/v1/admin/scenes/:id
+router.delete('/scenes/:id', async (req, res) => {
+  try {
+    const scene = await Scene.findByIdAndDelete(req.params.id);
+    if (!scene) return res.status(404).json({ error: 'Scène introuvable.' });
+    await TourHotspot.deleteMany({ virtualTourId: scene._id });
+    await TourHotspot.deleteMany({ targetType: 'scene', targetId: scene._id });
+    const remaining = await Scene.countDocuments({ venueId: scene.venueId });
+    if (remaining === 0) await Venue.findByIdAndUpdate(scene.venueId, { hasVirtualTour: false });
+    res.json({ success: true, message: 'Scène supprimée.' });
+  } catch (error) {
+    console.error('Error deleting scene:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// POST /api/v1/admin/scene-hotspots  (hotspot linking two scenes)
+router.post('/scene-hotspots', async (req, res) => {
+  try {
+    const { venueId, sceneId, label, xPercent, yPercent, targetSceneId, yaw, pitch } = req.body;
+    if (!venueId || !sceneId || !label || xPercent == null || yPercent == null || !targetSceneId) {
+      return res.status(400).json({ error: 'venueId, sceneId, label, xPercent, yPercent, targetSceneId requis.' });
+    }
+    const payload: Record<string, unknown> = {
+      venueId,
+      virtualTourId: sceneId,
+      label,
+      targetType: 'scene',
+      targetId: targetSceneId,
+      xPercent: Number(xPercent),
+      yPercent: Number(yPercent),
+      isActive: true,
+    };
+    if (yaw != null) payload.yaw = Number(yaw);
+    if (pitch != null) payload.pitch = Number(pitch);
+    const hotspot = await TourHotspot.create(payload);
+    res.status(201).json({ success: true, data: hotspot });
+  } catch (error) {
+    console.error('Error creating scene hotspot:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
 export default router;
