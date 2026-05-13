@@ -14,6 +14,7 @@ import { Event } from '../models/Event';
 import { Reservation } from '../models/Reservation';
 import { ReservationHold } from '../models/ReservationHold';
 import { subscribeToVenueAvailability } from '../services/availabilityEvents';
+import { Scene } from '../models/Scene';
 
 const router = Router();
 
@@ -422,6 +423,36 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching venue:', error);
     res.status(500).json({ error: 'Échec du chargement du lieu.' });
+  }
+});
+
+// GET /api/v1/venues/:id/scenes — public 360° scenes + navigation hotspots
+router.get('/:id/scenes', async (req, res) => {
+  try {
+    const idOrSlug = req.params.id;
+    const venue = await (mongoose.Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24
+      ? Venue.findById(idOrSlug)
+      : Venue.findOne({ slug: idOrSlug })
+    ).select('_id').lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu non trouvé' });
+
+    const scenes = await Scene.find({ venueId: (venue as any)._id, isActive: true })
+      .sort({ order: 1 })
+      .lean();
+    const sceneIds = (scenes as any[]).map((s) => s._id);
+    const hotspots = sceneIds.length
+      ? await TourHotspot.find({
+          venueId: (venue as any)._id,
+          virtualTourId: { $in: sceneIds },
+          isActive: true,
+          targetType: 'scene',
+        }).lean()
+      : [];
+
+    res.json({ scenes, hotspots });
+  } catch (error) {
+    console.error('Error fetching venue scenes:', error);
+    res.status(500).json({ error: 'Erreur.' });
   }
 });
 
