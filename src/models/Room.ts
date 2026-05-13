@@ -22,6 +22,8 @@ export interface IRoom extends Document {
   status?: 'available' | 'reserved' | 'blocked';
   coverImage?: string;
   gallery: string[];
+  /** Single 360° panoramic images (one image, full rotation — no navigation between scenes) */
+  panoramicImages: string[];
 }
 
 const RoomSchema = new Schema<IRoom>(
@@ -47,6 +49,7 @@ const RoomSchema = new Schema<IRoom>(
     status: { type: String, enum: ['available', 'reserved', 'blocked'], default: 'available' },
     coverImage: { type: String },
     gallery: { type: [String], default: [] },
+    panoramicImages: { type: [String], default: [] },
   },
   { timestamps: false }
 );

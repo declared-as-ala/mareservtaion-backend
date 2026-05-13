@@ -132,6 +132,21 @@ router.get('/:id/rooms', async (req, res) => {
   }
 });
 
+// GET /api/v1/venues/:id/rooms/:roomId/scenes — public room 360° scenes + hotspots
+router.get('/:id/rooms/:roomId/scenes', async (req, res) => {
+  try {
+    const scenes = await Scene.find({ roomId: req.params.roomId, isActive: true })
+      .sort({ order: 1 }).lean();
+    const sceneIds = scenes.map((s: any) => s._id);
+    const hotspots = sceneIds.length
+      ? await TourHotspot.find({ virtualTourId: { $in: sceneIds } }).lean()
+      : [];
+    res.json({ success: true, scenes, hotspots });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch room scenes.' });
+  }
+});
+
 // GET /api/v1/venues/:id/reservable-units — list reservable units (tables, rooms, seat zones) for a venue
 router.get('/:id/reservable-units', async (req, res) => {
   try {
