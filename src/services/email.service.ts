@@ -627,3 +627,99 @@ export function createReservationReviewRequestTemplate(
   const text = `Bonjour ${userName}, merci pour votre reservation chez ${venueName}. Votre avis sur la reservation ${reservationCode} nous aiderait beaucoup.`;
   return { subject, html, text };
 }
+
+interface HotelEmailParams {
+  guestName: string;
+  hotelName: string;
+  roomName: string;
+  reservationCode: string;
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  guests: number;
+  total: string;
+  paid: string;
+  remaining: string;
+  paymentLabel: string;
+  ticketUrl?: string;
+  hotelAddress?: string;
+  hotelPhone?: string;
+}
+
+function row(label: string, value: string) {
+  return `<tr><td style="padding:8px 0;color:#a3a3a3;font-size:14px;">${label}</td><td style="padding:8px 0;color:#fff;font-size:14px;text-align:right;font-weight:600;">${value}</td></tr>`;
+}
+
+export function createHotelClientConfirmationTemplate(p: HotelEmailParams): { subject: string; html: string; text: string } {
+  const subject = `Réservation confirmée — ${p.hotelName} · ${p.reservationCode}`;
+  const ticketBtn = p.ticketUrl
+    ? `<tr><td style="padding-top:24px;text-align:center;"><a href="${p.ticketUrl}" style="display:inline-block;background:#fbbf24;color:#000;padding:14px 28px;border-radius:12px;font-weight:700;text-decoration:none;font-size:14px;">Voir mon ticket</a></td></tr>`
+    : '';
+  const html = `
+    <!DOCTYPE html>
+    <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#0a0a0a;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;padding:40px 20px;">
+        <tr><td style="text-align:center;padding-bottom:24px;"><h1 style="color:#fbbf24;margin:0;font-size:26px;">Ma Reservation</h1></td></tr>
+        <tr><td style="background:#171717;border-radius:16px;padding:36px;border:1px solid rgba(255,255,255,0.08);">
+          <div style="display:inline-block;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#34d399;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;">Réservation confirmée</div>
+          <h2 style="color:#fff;margin:16px 0 8px 0;font-size:22px;">Bonjour ${p.guestName},</h2>
+          <p style="color:#a3a3a3;font-size:15px;line-height:1.6;margin:0 0 24px 0;">Votre séjour à <strong style="color:#fff;">${p.hotelName}</strong> est confirmé. Conservez cet email — il fait office de ticket.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.05);">
+            ${row('Référence', `<span style="font-family:monospace;color:#fbbf24;">${p.reservationCode}</span>`)}
+            ${row('Hôtel', p.hotelName)}
+            ${row('Chambre', p.roomName)}
+            ${row('Arrivée', p.checkIn)}
+            ${row('Départ', p.checkOut)}
+            ${row('Durée', `${p.nights} nuit${p.nights > 1 ? 's' : ''}`)}
+            ${row('Voyageurs', String(p.guests))}
+            ${row('Paiement', p.paymentLabel)}
+            ${row('Total', `${p.total}`)}
+            ${row('Payé', p.paid)}
+            ${row('À régler sur place', p.remaining)}
+          </table>
+          ${p.hotelAddress || p.hotelPhone ? `
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#0a0a0a;border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+            <tr><td style="color:#a3a3a3;font-size:13px;line-height:1.6;">
+              ${p.hotelAddress ? `📍 ${p.hotelAddress}<br>` : ''}
+              ${p.hotelPhone ? `📞 <a href="tel:${p.hotelPhone}" style="color:#fbbf24;text-decoration:none;">${p.hotelPhone}</a>` : ''}
+            </td></tr>
+          </table>` : ''}
+          ${ticketBtn}
+          <p style="color:#6b7280;font-size:12px;line-height:1.6;margin:24px 0 0 0;">Annulation gratuite jusqu'à 24h avant l'arrivée. Présentez le QR code de votre ticket à la réception.</p>
+        </td></tr>
+      </table>
+    </body></html>`;
+  const text = `Bonjour ${p.guestName}, votre réservation à ${p.hotelName} est confirmée. Référence: ${p.reservationCode}. Du ${p.checkIn} au ${p.checkOut} (${p.nights} nuits). Total: ${p.total}.`;
+  return { subject, html, text };
+}
+
+export function createHotelOwnerNewReservationTemplate(p: HotelEmailParams & { ownerName: string }): { subject: string; html: string; text: string } {
+  const subject = `Nouvelle réservation — ${p.roomName} · ${p.reservationCode}`;
+  const html = `
+    <!DOCTYPE html>
+    <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#0a0a0a;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;padding:40px 20px;">
+        <tr><td style="text-align:center;padding-bottom:24px;"><h1 style="color:#fbbf24;margin:0;font-size:26px;">Ma Reservation</h1></td></tr>
+        <tr><td style="background:#171717;border-radius:16px;padding:36px;border:1px solid rgba(255,255,255,0.08);">
+          <div style="display:inline-block;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;">Nouvelle réservation</div>
+          <h2 style="color:#fff;margin:16px 0 8px 0;font-size:22px;">Bonjour ${p.ownerName},</h2>
+          <p style="color:#a3a3a3;font-size:15px;line-height:1.6;">Vous avez une nouvelle réservation à <strong style="color:#fff;">${p.hotelName}</strong>.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:#0a0a0a;border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.05);">
+            ${row('Référence', `<span style="font-family:monospace;color:#fbbf24;">${p.reservationCode}</span>`)}
+            ${row('Chambre', p.roomName)}
+            ${row('Client', p.guestName)}
+            ${row('Arrivée', p.checkIn)}
+            ${row('Départ', p.checkOut)}
+            ${row('Durée', `${p.nights} nuit${p.nights > 1 ? 's' : ''}`)}
+            ${row('Voyageurs', String(p.guests))}
+            ${row('Paiement', p.paymentLabel)}
+            ${row('Montant total', p.total)}
+            ${row('Payé', p.paid)}
+          </table>
+          <p style="color:#6b7280;font-size:12px;line-height:1.6;margin:24px 0 0 0;">Connectez-vous à votre espace pour consulter ou gérer cette réservation.</p>
+        </td></tr>
+      </table>
+    </body></html>`;
+  const text = `Nouvelle réservation ${p.reservationCode} pour ${p.roomName} (${p.hotelName}). Client: ${p.guestName}. Du ${p.checkIn} au ${p.checkOut}.`;
+  return { subject, html, text };
+}

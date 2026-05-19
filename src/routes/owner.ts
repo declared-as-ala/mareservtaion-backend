@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { authenticate, AuthRequest, requireEstablishmentOwner } from '../middleware/auth';
 import { Venue } from '../models/Venue';
 import { Reservation } from '../models/Reservation';
+import { Room } from '../models/Room';
 import { logAudit } from '../utils/audit.util';
 
 const router = Router();
@@ -98,6 +100,87 @@ router.patch('/reservations/:id/verify-qr', authenticate, requireEstablishmentOw
   } catch (error) {
     console.error('Owner QR verify error:', error);
     res.status(500).json({ error: 'Erreur verification QR.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Rooms management for hotel owners (full CRUD scoped to their venues)
+// ─────────────────────────────────────────────────────────────────────
+
+async function assertHotelOwnedByCaller(venueId: string, req: AuthRequest) {
+  if (!mongoose.Types.ObjectId.isValid(venueId)) return null;
+  const venue = await Venue.findById(venueId).select('_id type ownerId').lean();
+  if (!venue || (venue as any).type !== 'HOTEL') return null;
+  if (req.userRole === 'ADMIN') return venue;
+  if (String((venue as any).ownerId) !== String(req.userId)) return null;
+  return venue;
+}
+
+async function assertRoomOwnedByCaller(roomId: string, req: AuthRequest) {
+  if (!mongoose.Types.ObjectId.isValid(roomId)) return null;
+  const room = await Room.findById(roomId);
+  if (!room) return null;
+  const venue = await assertHotelOwnedByCaller(String(room.venueId), req);
+  if (!venue) return null;
+  return room;
+}
+
+// GET /api/v1/owner/hotels/:id/rooms
+router.get('/hotels/:id/rooms', authenticate, requireEstablishmentOwner, async (req: AuthRequest, res) => {
+  try {
+    const venue = await assertHotelOwnedByCaller(req.params.id, req);
+    if (!venue) return res.status(404).json({ error: 'Hôtel introuvable ou non autorisé.' });
+    const rooms = await Room.find({ venueId: (venue as any)._id }).sort({ pricePerNight: 1 }).lean();
+    res.json({ success: true, rooms });
+  } catch (error) {
+    console.error('Owner rooms list error:', error);
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// POST /api/v1/owner/hotels/:id/rooms
+router.post('/hotels/:id/rooms', authenticate, requireEstablishmentOwner, async (req: AuthRequest, res) => {
+  try {
+    const venue = await assertHotelOwnedByCaller(req.params.id, req);
+    if (!venue) return res.status(404).json({ error: 'Hôtel introuvable ou non autorisé.' });
+    const { roomNumber, roomType, capacity, pricePerNight } = req.body;
+    if (!roomNumber || !roomType || !capacity || !pricePerNight) {
+      return res.status(400).json({ error: 'roomNumber, roomType, capacity, pricePerNight requis.' });
+    }
+    const room = await Room.create({ venueId: (venue as any)._id, ...req.body });
+    res.status(201).json({ success: true, data: room });
+  } catch (error: any) {
+    console.error('Owner room create error:', error);
+    if (error.code === 11000) return res.status(409).json({ error: 'Numéro de chambre déjà utilisé.' });
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// PATCH /api/v1/owner/rooms/:id — update room (including gallery + panoramicImages)
+router.patch('/rooms/:id', authenticate, requireEstablishmentOwner, async (req: AuthRequest, res) => {
+  try {
+    const room = await assertRoomOwnedByCaller(req.params.id, req);
+    if (!room) return res.status(404).json({ error: 'Chambre introuvable ou non autorisé.' });
+    Object.assign(room, req.body);
+    await room.save();
+    res.json({ success: true, data: room });
+  } catch (error: any) {
+    console.error('Owner room update error:', error);
+    if (error.code === 11000) return res.status(409).json({ error: 'Numéro de chambre déjà utilisé.' });
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+// DELETE /api/v1/owner/rooms/:id
+router.delete('/rooms/:id', authenticate, requireEstablishmentOwner, async (req: AuthRequest, res) => {
+  try {
+    const room = await assertRoomOwnedByCaller(req.params.id, req);
+    if (!room) return res.status(404).json({ error: 'Chambre introuvable ou non autorisé.' });
+    await room.deleteOne();
+    res.json({ success: true, message: 'Chambre supprimée.' });
+  } catch (error) {
+    console.error('Owner room delete error:', error);
+    res.status(500).json({ error: 'Erreur.' });
   }
 });
 

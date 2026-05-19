@@ -12,6 +12,14 @@ export type ImmersiveType = 'none' | 'virtual-tour' | 'view-360';
 export type ImmersiveSourceType = 'url' | 'upload';
 export type ImmersiveProvider = 'custom' | 'matterport' | 'klapty';
 
+export type VenueApprovalStatus = 'draft' | 'pending_review' | 'changes_requested' | 'approved' | 'rejected' | 'suspended';
+
+export interface IComplianceDoc {
+  url: string;
+  label: string;
+  uploadedAt: Date;
+}
+
 export interface IVenue extends Document {
   name: string;
   slug: string;
@@ -53,6 +61,14 @@ export interface IVenue extends Document {
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   ownerId?: Types.ObjectId;
+  // ── Marketplace approval (super-admin gate) ──
+  approvalStatus?: VenueApprovalStatus;
+  submittedForReviewAt?: Date;
+  reviewedAt?: Date;
+  reviewedBy?: Types.ObjectId;
+  rejectionReason?: string;
+  adminNote?: string;
+  complianceDocs?: IComplianceDoc[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +115,21 @@ const VenueSchema = new Schema<IVenue>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvalStatus: {
+      type: String,
+      enum: ['draft', 'pending_review', 'changes_requested', 'approved', 'rejected', 'suspended'],
+      default: 'approved',
+    },
+    submittedForReviewAt: { type: Date },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    rejectionReason: { type: String, maxlength: 1000 },
+    adminNote: { type: String, maxlength: 1000 },
+    complianceDocs: [{
+      url: { type: String, required: true },
+      label: { type: String, required: true },
+      uploadedAt: { type: Date, default: Date.now },
+    }],
   },
   { timestamps: true }
 );
@@ -108,5 +139,6 @@ VenueSchema.index({ name: 'text', description: 'text', city: 'text' });
 VenueSchema.index({ isPublished: 1, isFeatured: -1 });
 VenueSchema.index({ hasVirtualTour: 1, isPublished: 1 });
 VenueSchema.index({ ownerId: 1, type: 1, isPublished: 1 });
+VenueSchema.index({ approvalStatus: 1, submittedForReviewAt: -1 });
 
 export const Venue = mongoose.model<IVenue>('Venue', VenueSchema);
