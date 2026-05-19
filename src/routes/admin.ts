@@ -542,6 +542,58 @@ router.patch('/venues/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/venues/:id — cascade-delete venue + all related entities
+router.delete('/venues/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'ID invalide.' });
+
+    const venue = await Venue.findById(id).lean();
+    if (!venue) return res.status(404).json({ error: 'Lieu introuvable.' });
+
+    const { VenueMedia } = await import('../models/VenueMedia');
+    const { TableHotspot } = await import('../models/TableHotspot');
+    const { Scene } = await import('../models/Scene');
+
+    const [hotspots, placements, tables, rooms, seats, events, tours, media, scenes, reservations] =
+      await Promise.all([
+        TourHotspot.deleteMany({ venueId: id }),
+        TablePlacement.deleteMany({ venueId: id }),
+        Table.deleteMany({ venueId: id }),
+        Room.deleteMany({ venueId: id }),
+        Seat.deleteMany({ venueId: id }),
+        Event.deleteMany({ venueId: id }),
+        VirtualTour.deleteMany({ venueId: id }),
+        VenueMedia.deleteMany({ venueId: id }),
+        Scene.deleteMany({ venueId: id }),
+        Reservation.deleteMany({ venueId: id }),
+      ]);
+    await TableHotspot.deleteMany({ venueId: id });
+
+    await Venue.deleteOne({ _id: id });
+
+    res.json({
+      success: true,
+      deleted: {
+        venue: venue.name,
+        tables: tables.deletedCount ?? 0,
+        rooms: rooms.deletedCount ?? 0,
+        seats: seats.deletedCount ?? 0,
+        events: events.deletedCount ?? 0,
+        tours: tours.deletedCount ?? 0,
+        media: media.deletedCount ?? 0,
+        scenes: scenes.deletedCount ?? 0,
+        hotspots: hotspots.deletedCount ?? 0,
+        placements: placements.deletedCount ?? 0,
+        reservations: reservations.deletedCount ?? 0,
+      },
+    });
+  } catch (error) {
+    console.error('Error deleting venue:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression du lieu.' });
+  }
+});
+
 // GET /api/admin/reservations?page=1&status=&type=&city=&venueId=&from=&to=
 router.get('/reservations', async (req, res) => {
   try {

@@ -16,14 +16,24 @@ export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded
 export type BookingType = 'TABLE' | 'ROOM' | 'SEAT';
 export type ReservableType = 'table' | 'room' | 'seat_zone' | 'seat';
 export type CheckInStatus = 'not_checked_in' | 'checked_in';
+export type PaymentOption = 'online' | 'deposit' | 'pay_at_hotel';
 
 export interface IPriceBreakdown {
   subtotal: number;
   serviceFee?: number;
   taxes?: number;
   discount?: number;
+  extrasTotal?: number;
   total: number;
   currency: string;
+}
+
+export interface IReservationExtra {
+  key: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  unit?: 'once' | 'per_night' | 'per_person';
 }
 
 export interface IReservation extends Document {
@@ -78,6 +88,28 @@ export interface IReservation extends Document {
   reminderEmailSentAt?: Date;
   reviewRequestSentAt?: Date;
   cancellationEmailSentAt?: Date;
+  // Hotel-specific
+  holdId?: Types.ObjectId;
+  paymentOption?: PaymentOption;
+  nights?: number;
+  adults?: number;
+  children?: number;
+  childrenAges?: number[];
+  roomsCount?: number;
+  arrivalTime?: string; // "HH:mm"
+  extras?: IReservationExtra[];
+  extrasTotal?: number;
+  cancellationDeadline?: Date;
+  acceptedHotelPolicy?: boolean;
+  acceptedPlatformTerms?: boolean;
+  idNumber?: string;
+  nationality?: string;
+  dateOfBirth?: Date;
+  guestCountry?: string;
+  guestCity?: string;
+  needBabyBed?: boolean;
+  needExtraBed?: boolean;
+  accessibilityRequest?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -114,9 +146,37 @@ const ReservationSchema = new Schema<IReservation>(
       serviceFee: { type: Number },
       taxes: { type: Number },
       discount: { type: Number },
+      extrasTotal: { type: Number },
       total: { type: Number },
       currency: { type: String },
     },
+    holdId: { type: Schema.Types.ObjectId, ref: 'ReservationHold' },
+    paymentOption: { type: String, enum: ['online', 'deposit', 'pay_at_hotel'] },
+    nights: { type: Number },
+    adults: { type: Number },
+    children: { type: Number, default: 0 },
+    childrenAges: { type: [Number], default: [] },
+    roomsCount: { type: Number, default: 1 },
+    arrivalTime: { type: String },
+    extras: [{
+      key: { type: String },
+      name: { type: String },
+      unitPrice: { type: Number },
+      quantity: { type: Number, default: 1 },
+      unit: { type: String, enum: ['once', 'per_night', 'per_person'], default: 'once' },
+    }],
+    extrasTotal: { type: Number, default: 0 },
+    cancellationDeadline: { type: Date },
+    acceptedHotelPolicy: { type: Boolean, default: false },
+    acceptedPlatformTerms: { type: Boolean, default: false },
+    idNumber: { type: String },
+    nationality: { type: String },
+    dateOfBirth: { type: Date },
+    guestCountry: { type: String },
+    guestCity: { type: String },
+    needBabyBed: { type: Boolean, default: false },
+    needExtraBed: { type: Boolean, default: false },
+    accessibilityRequest: { type: String },
     totalPrice: { type: Number, required: true, default: 0 },
     confirmationCode: { type: String, required: true, unique: true },
     status: {

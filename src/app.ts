@@ -23,6 +23,9 @@ import scenesRouter from './routes/scenes';
 import menuItemsRouter from './routes/menuItems';
 import paymentsRouter from './routes/payments';
 import menuDuJourRouter from './routes/menu-du-jour';
+import hotelCheckoutRouter from './routes/hotel-checkout';
+import ownerHotelRouter from './routes/owner-hotel';
+import adminHotelRouter from './routes/admin-hotel';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { apiLimiter } from './middlewares/rateLimit.middleware';
 import { getEmailHealth } from './services/email.service';
@@ -136,6 +139,9 @@ app.use('/api/v1/scenes', scenesRouter);
 app.use('/api/v1/menu', menuItemsRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/menu-du-jour', menuDuJourRouter);
+app.use('/api/v1/hotel-checkout', hotelCheckoutRouter);
+app.use('/api/v1/owner-hotel', ownerHotelRouter);
+app.use('/api/v1/admin-hotel', adminHotelRouter);
 
 // Legacy /api/* (backward compatibility during migration)
 app.get('/health', (req, res) => {
